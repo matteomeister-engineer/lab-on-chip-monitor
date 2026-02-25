@@ -1,0 +1,30 @@
+# Flutter
+build/
+.dart_tool/
+.packages
+pubspec.lock
+
+# macOS
+.DS_Store
+
+# Android
+local.properties
+.gradle/
+
+# iOS
+Pods/
+Runner.xcworkspace/
+DerivedData/
+
+# C++
+*.o
+*.out
+
+# Logs
+logs/
+*.csv
+
+# IDE
+.vscode/
+.idea/
+*.iml

@@ -1,0 +1,82 @@
+================================================
+ LAB-ON-CHIP MONITOR — RUN COMMANDS
+================================================
+
+Open 3 separate terminal tabs/windows and run one section in each.
+
+------------------------------------------------
+ TERMINAL 1 — Temperature / Environment Backend
+------------------------------------------------
+
+cd '/Users/matteomeister/Documents/Medical Devices/Projects/Flutter/files/temperature-monitor/backend'
+docker build -t temp-sensor .
+docker run -p 8080:8080 temp-sensor
+
+# If already built, just run:
+# docker run -p 8080:8080 temp-sensor
+
+------------------------------------------------
+ TERMINAL 2 — Cell Analyser (OpenCV) Backend
+------------------------------------------------
+
+cd '/Users/matteomeister/Documents/Medical Devices/Projects/Flutter/files/temperature-monitor/backend'
+docker build --no-cache -f Dockerfile.cell -t cell-analyzer .
+docker run -p 8081:8081 cell-analyzer
+
+# If already built, just run:
+# docker run -p 8081:8081 cell-analyzer
+
+------------------------------------------------
+ TERMINAL 3 — Flutter App
+------------------------------------------------
+
+cd '/Users/matteomeister/Documents/Medical Devices/Projects/Flutter/files/temperature-monitor/frontend'
+flutter pub get
+flutter run -d macos
+
+# Hot reload (minor UI changes):   press  r
+# Hot restart (full app restart):  press  R
+# Quit:                            press  q
+
+------------------------------------------------
+ USEFUL EXTRAS
+------------------------------------------------
+
+# Check running containers:
+docker ps
+
+# Stop all containers:
+docker stop $(docker ps -q)
+
+# Stop a specific container:
+docker stop <container_id>
+
+# Rebuild temp sensor (after editing sensor_server.cpp):
+cd '/Users/matteomeister/Documents/Medical Devices/Projects/Flutter/files/temperature-monitor/backend'
+docker build -t temp-sensor .
+
+# Rebuild cell analyser (after editing cell_analyzer.cpp):
+cd '/Users/matteomeister/Documents/Medical Devices/Projects/Flutter/files/temperature-monitor/backend'
+docker build --no-cache -f Dockerfile.cell -t cell-analyzer .
+
+------------------------------------------------
+ TEST ENDPOINTS IN BROWSER
+------------------------------------------------
+
+Environment sensors:  http://localhost:8080/api/environment
+Temperature only:     http://localhost:8080/api/temperature
+Cell analysis:        http://localhost:8081/api/analyze
+Status (env):         http://localhost:8080/api/status
+Status (cells):       http://localhost:8081/api/status
+
+------------------------------------------------
+ LOGIN CREDENTIALS (demo)
+------------------------------------------------
+
+Username    Password
+--------    --------
+tech01      password1
+tech02      password2
+admin       admin123
+
+================================================

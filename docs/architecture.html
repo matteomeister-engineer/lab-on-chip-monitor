@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #080c14;
+    color: #d0d8f0;
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    padding: 40px 20px;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 1.3rem;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #a0c4ff;
+    margin-bottom: 6px;
+  }
+
+  .subtitle {
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: #3a4060;
+    margin-bottom: 50px;
+    letter-spacing: 0.12em;
+  }
+
+  .diagram {
+    max-width: 860px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* ── LAYER BOX ── */
+  .layer {
+    border-radius: 14px;
+    padding: 24px;
+    border: 1.5px solid;
+    position: relative;
+  }
+
+  .layer-label {
+    position: absolute;
+    top: -11px;
+    left: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-weight: 700;
+  }
+
+  /* Flutter layer */
+  .flutter-layer {
+    background: #080f1f;
+    border-color: #1a3a7a;
+  }
+  .flutter-layer .layer-label { background: #1a3a7a; color: #7db8f9; }
+
+  /* Docker layer */
+  .docker-layer {
+    background: #0a0f0a;
+    border-color: #1a4a2a;
+    margin-top: -2px;
+  }
+  .docker-layer .layer-label { background: #1a4a2a; color: #7df9a0; }
+
+  /* ── GRID INSIDE LAYER ── */
+  .layer-grid {
+    display: grid;
+    gap: 14px;
+  }
+
+  .flutter-grid { grid-template-columns: 1fr 1fr 1fr; }
+  .cpp-grid     { grid-template-columns: 1fr 1fr 1fr; }
+
+  /* ── CARD ── */
+  .card {
+    border-radius: 10px;
+    padding: 14px;
+    border: 1px solid;
+  }
+
+  .card-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .card-mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    line-height: 1.7;
+    color: #7a8aaa;
+  }
+
+  .card-mono span {
+    display: block;
+  }
+
+  .card-mono .highlight { color: #f9c87d; }
+  .card-mono .green     { color: #7df9a0; }
+  .card-mono .blue      { color: #7db8f9; }
+  .card-mono .pink      { color: #f97db8; }
+
+  /* card color variants */
+  .card-blue  { background: #0a1428; border-color: #1e3a6e; }
+  .card-blue .card-title { color: #7db8f9; }
+
+  .card-teal  { background: #081a18; border-color: #1a4a44; }
+  .card-teal .card-title { color: #7df9ea; }
+
+  .card-purple { background: #12081e; border-color: #3a1a5e; }
+  .card-purple .card-title { color: #c87df9; }
+
+  .card-green { background: #081408; border-color: #1a4a1a; }
+  .card-green .card-title { color: #7df9a0; }
+
+  .card-orange { background: #1a1008; border-color: #5a3a10; }
+  .card-orange .card-title { color: #f9c87d; }
+
+  .card-red   { background: #1a0808; border-color: #5a1a1a; }
+  .card-red .card-title   { color: #f97d7d; }
+
+  /* ── ARROW AREA ── */
+  .arrow-zone {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 30px;
+    padding: 10px 0;
+    position: relative;
+  }
+
+  .arrow-box {
+    background: #0e0e1c;
+    border: 1.5px solid #2a2a4a;
+    border-radius: 10px;
+    padding: 12px 20px;
+    text-align: center;
+    min-width: 200px;
+  }
+
+  .arrow-box-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #f9c87d;
+    margin-bottom: 4px;
+  }
+
+  .arrow-box-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    color: #555;
+  }
+
+  .arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .arrow-line {
+    width: 2px;
+    height: 28px;
+    position: relative;
+  }
+
+  .arrow-down { background: linear-gradient(to bottom, #f9c87d, #7df9a0); }
+  .arrow-up   { background: linear-gradient(to top,   #7df9a0, #f9c87d); }
+
+  .arrow-head-down {
+    width: 0; height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid #7df9a0;
+  }
+
+  .arrow-head-up {
+    width: 0; height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 8px solid #f9c87d;
+  }
+
+  .arrow-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.58rem;
+    color: #555;
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+
+  /* ── TWO ARROWS SIDE BY SIDE ── */
+  .arrows-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 40px;
+    padding: 4px 0;
+  }
+
+  .arrow-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  /* ── HARDWARE ROW ── */
+  .hw-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+    margin-top: 14px;
+  }
+
+  /* ── PILL TAG ── */
+  .pill {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.55rem;
+    padding: 2px 7px;
+    border-radius: 20px;
+    margin-top: 6px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+
+  .pill-blue   { background: #1a3a7a; color: #7db8f9; }
+  .pill-green  { background: #1a4a2a; color: #7df9a0; }
+  .pill-purple { background: #3a1a5e; color: #c87df9; }
+  .pill-orange { background: #5a3a10; color: #f9c87d; }
+
+  /* ── DIVIDER ── */
+  .divider {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.2em;
+    color: #2a2a4a;
+    text-align: center;
+    margin: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .divider::before, .divider::after {
+    content:''; flex:1; height:1px; background:#1a1a2e;
+  }
+
+  .layer-note {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    color: #2a3a5a;
+    text-align: right;
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+
+<h1>System Architecture</h1>
+<p class="subtitle">Flutter Frontend · REST API · C++ Backend · Docker · Torizon</p>
+
+<div class="diagram">
+
+  <!-- ══ FLUTTER LAYER ══ -->
+  <div class="layer flutter-layer">
+    <div class="layer-label">🖥 Frontend — Flutter (Dart) · runs on Mac / device screen</div>
+    <div class="layer-grid flutter-grid">
+
+      <div class="card card-blue">
+        <div class="card-title">📱 UI Widgets</div>
+        <div class="card-mono">
+          <span class="highlight">main.dart</span>
+          <span>─ MaterialApp</span>
+          <span>─ MonitorScreen</span>
+          <span>─ Temperature display</span>
+          <span>─ Start/Stop button</span>
+          <span>─ Status indicator</span>
+          <span class="green">→ shows live °C value</span>
+        </div>
+        <span class="pill pill-blue">Stateful Widget</span>
+      </div>
+
+      <div class="card card-teal">
+        <div class="card-title">⏱ Timer / State</div>
+        <div class="card-mono">
+          <span class="highlight">_MonitorScreenState</span>
+          <span>─ Timer.periodic(1s)</span>
+          <span>─ calls fetchTemperature()</span>
+          <span>─ setState() on response</span>
+          <span>─ dispose() on exit</span>
+          <span class="green">→ polls every second</span>
+        </div>
+        <span class="pill pill-green">Dart async/await</span>
+      </div>
+
+      <div class="card card-purple">
+        <div class="card-title">🌐 HTTP Client</div>
+        <div class="card-mono">
+          <span class="highlight">package:http</span>
+          <span>─ http.get(Uri.parse(</span>
+          <span class="blue">  apiUrl</span>
+          <span>))</span>
+          <span>─ json.decode(body)</span>
+          <span>─ reads data['temperature']</span>
+          <span class="green">→ GET request to :8080</span>
+        </div>
+        <span class="pill pill-purple">pubspec.yaml dep</span>
+      </div>
+
+    </div>
+    <div class="layer-note">flutter run -d macos &nbsp;|&nbsp; dart:async &nbsp;|&nbsp; dart:convert</div>
+  </div>
+
+  <!-- ══ ARROWS ══ -->
+  <div class="arrows-wrapper">
+    <div class="arrow-col">
+      <div class="arrow-label">GET /api/temperature</div>
+      <div class="arrow-line arrow-down"></div>
+      <div class="arrow-head-down"></div>
+    </div>
+    <div class="arrow-box">
+      <div class="arrow-box-title">REST API over HTTP</div>
+      <div class="arrow-box-sub">http://localhost:8080/api/temperature<br>JSON response: {"temperature": 23.4}</div>
+    </div>
+    <div class="arrow-col">
+      <div class="arrow-head-up"></div>
+      <div class="arrow-line arrow-up"></div>
+      <div class="arrow-label">JSON {"temperature": 23.4}</div>
+    </div>
+  </div>
+
+  <!-- ══ DOCKER / BACKEND LAYER ══ -->
+  <div class="layer docker-layer">
+    <div class="layer-label">🐳 Backend — Docker Container · C++17 · port 8080</div>
+    <div class="layer-grid cpp-grid">
+
+      <div class="card card-green">
+        <div class="card-title">🌡 Sensor Simulator</div>
+        <div class="card-mono">
+          <span class="highlight">sensor_server.cpp</span>
+          <span>─ TemperatureSensor class</span>
+          <span>─ readTemperature()</span>
+          <span>─ simulates drift toward</span>
+          <span>  target_temp</span>
+          <span>─ ±noise each tick</span>
+          <span class="green">→ realistic float value</span>
+        </div>
+        <span class="pill pill-green">C++17 class</span>
+      </div>
+
+      <div class="card card-orange">
+        <div class="card-title">🔌 HTTP Server</div>
+        <div class="card-mono">
+          <span class="highlight">cpp-httplib</span>
+          <span>─ server.Get(</span>
+          <span class="highlight">  "/api/temperature"</span>
+          <span>─ reads sensor value</span>
+          <span>─ builds JSON string</span>
+          <span>─ res.set_content()</span>
+          <span class="green">→ serves on 0.0.0.0:8080</span>
+        </div>
+        <span class="pill pill-orange">header-only lib</span>
+      </div>
+
+      <div class="card card-red">
+        <div class="card-title">📦 Dockerfile</div>
+        <div class="card-mono">
+          <span class="highlight">FROM gcc:latest</span>
+          <span>─ COPY sensor_server.cpp</span>
+          <span>─ RUN g++ -std=c++17</span>
+          <span>     -o sensor_server</span>
+          <span>─ CMD ["./sensor_server"]</span>
+          <span class="green">→ docker run -p 8080:8080</span>
+        </div>
+        <span class="pill pill-orange">docker build -t temp-sensor .</span>
+      </div>
+
+    </div>
+
+    <!-- hardware divider -->
+    <div class="divider" style="margin-top:18px">── optionally reads from real hardware ──</div>
+    <div class="hw-row">
+      <div class="card card-green" style="padding:10px 14px">
+        <div class="card-title" style="font-size:0.75rem">🔌 GPIO / I²C</div>
+        <div class="card-mono">
+          <span>Real temp sensor</span>
+          <span>(e.g. DS18B20)</span>
+          <span>wired to Pi pins</span>
+        </div>
+      </div>
+      <div class="card card-green" style="padding:10px 14px">
+        <div class="card-title" style="font-size:0.75rem">🥧 Raspberry Pi</div>
+        <div class="card-mono">
+          <span>Runs Torizon OS</span>
+          <span>Hosts Docker container</span>
+          <span>same port 8080</span>
+        </div>
+      </div>
+      <div class="card card-green" style="padding:10px 14px">
+        <div class="card-title" style="font-size:0.75rem">🐧 Torizon OS</div>
+        <div class="card-mono">
+          <span>Embedded Linux</span>
+          <span>manages containers</span>
+          <span>OTA updates</span>
+        </div>
+      </div>
+    </div>
+    <div class="layer-note">g++ -std=c++17 -pthread &nbsp;|&nbsp; docker build &amp; run &nbsp;|&nbsp; port 8080 exposed</div>
+  </div>
+
+</div>
+
+</body>
+</html>

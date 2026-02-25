@@ -1,0 +1,12 @@
+FROM ubuntu:22.04
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y g++ cmake pkg-config libopencv-dev && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY cell_analyzer.cpp .
+COPY httplib.h .
+
+RUN pkg-config --cflags --libs opencv4 > /tmp/opencv_flags.txt && g++ -std=c++17 -O2 -o cell_analyzer cell_analyzer.cpp $(cat /tmp/opencv_flags.txt) -pthread
+
+CMD ["./cell_analyzer"]
