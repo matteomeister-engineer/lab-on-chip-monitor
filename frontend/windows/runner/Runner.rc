@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "temperature_monitor" "\0"
+            VALUE "FileDescription", "lab_on_chip_monitor" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "temperature_monitor" "\0"
+            VALUE "InternalName", "lab_on_chip_monitor" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "temperature_monitor.exe" "\0"
-            VALUE "ProductName", "temperature_monitor" "\0"
+            VALUE "OriginalFilename", "lab_on_chip_monitor.exe" "\0"
+            VALUE "ProductName", "lab_on_chip_monitor" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
