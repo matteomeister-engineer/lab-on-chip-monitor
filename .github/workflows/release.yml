@@ -46,21 +46,20 @@ jobs:
         working-directory: frontend
         run: |
           create-dmg \
-            --volname "TheraMeDx1 Simulator" \
-            --background /System/Library/Desktop\ Pictures/Solid\ Colors/Black.png \
+            --volname "Lab-on-Chip Monitor" \
             --window-pos 200 120 \
             --window-size 600 400 \
             --icon-size 120 \
             --icon "$(basename "$APP_PATH")" 150 200 \
             --app-drop-link 450 200 \
-            "TheraMeDx1-macOS.dmg" \
+            "Lab-on-Chip-Monitor-macOS.dmg" \
             "$APP_PATH"
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-dmg
-          path: frontend/TheraMeDx1-macOS.dmg
+          path: frontend/Lab-on-Chip-Monitor-macOS.dmg
 
   build-windows:
     runs-on: windows-latest
@@ -83,13 +82,13 @@ jobs:
 
       - name: Zip Windows build
         working-directory: frontend/build/windows/x64/runner
-        run: Compress-Archive -Path Release -DestinationPath TheraMeDx1-Windows.zip
+        run: Compress-Archive -Path Release -DestinationPath Lab-on-Chip-Monitor-Windows.zip
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-zip
-          path: frontend/build/windows/x64/runner/TheraMeDx1-Windows.zip
+          path: frontend/build/windows/x64/runner/Lab-on-Chip-Monitor-Windows.zip
 
   release:
     needs: [build-macos, build-windows]
@@ -110,17 +109,17 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "TheraMeDx1 Simulator ${{ github.ref_name }}"
+          name: "Lab-on-Chip Monitor ${{ github.ref_name }}"
           body: |
-            ## TheraMeDx1 Simulator
+            ## Lab-on-Chip Monitor
 
             ### Download
-            - **macOS**: Download `TheraMeDx1-macOS.dmg` → open → drag app to Applications
-            - **Windows**: Download `TheraMeDx1-Windows.zip` → extract → run `therame_simulator.exe`
+            - **macOS**: Download `Lab-on-Chip-Monitor-macOS.dmg` → open → drag app to Applications
+            - **Windows**: Download `Lab-on-Chip-Monitor-Windows.zip` → extract → run `lab_on_chip_monitor.exe`
 
             ### Requirements
             No setup needed. The app connects automatically to the cloud backends.
 
           files: |
-            TheraMeDx1-macOS.dmg
-            TheraMeDx1-Windows.zip
+            Lab-on-Chip-Monitor-macOS.dmg
+            Lab-on-Chip-Monitor-Windows.zip

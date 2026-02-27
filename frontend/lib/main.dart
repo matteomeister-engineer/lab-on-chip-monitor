@@ -320,7 +320,7 @@ class _MainDashboardState extends State<MainDashboard> {
   Timer? _revealTimer;
   final List<String> _auditLog = [];
 
-  static const String _backendUrl = 'https://therame-simulator-production.up.railway.app';
+  static const String _backendUrl = 'http://localhost:8080';
 
   // ── Targets (survive tab switches) ──────────────────────────────────────
   final Map<String, double> targets = {
@@ -864,7 +864,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
     'o2': [], 'pressure': [], 'ph': [],
   };
 
-  final String _url = 'https://therame-simulator-production.up.railway.app/api/environment';
+  final String _url = 'http://localhost:8080/api/environment';
 
   @override
   void initState() { super.initState(); _start(); }
@@ -1416,7 +1416,7 @@ class RunProtocolPanel extends StatelessWidget {
             Text(patient['diagnosis'] ?? '',
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
                     color: Color(0xFF1A1A2E))),
-            const Text('TheraMeDx1 Sampler™ — Run Protocol',
+            const Text('Lab-on-Chip Monitor — Run Protocol',
                 style: TextStyle(fontSize: 11, color: Colors.black38)),
           ]),
           const Spacer(),
@@ -1715,7 +1715,7 @@ class RunProtocolPanel extends StatelessWidget {
       const Padding(
         padding: EdgeInsets.symmetric(horizontal: 40),
         child: Text(
-          'Start the TheraMeDx1 Sampler™ protocol for this patient sample.\n'
+          'Start the Lab-on-Chip Monitor protocol for this patient sample.\n'
           'Ensure chip is loaded and all environment sensors are nominal.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 12, color: Colors.black38, height: 1.6),
@@ -2076,7 +2076,7 @@ class _OncologyPanelState extends State<OncologyPanel> {
   bool _loading = false, _connected = false;
   String _status = 'Idle';
   int? _selectedWell;
-  final String _url = 'https://therame-simulator-production-8370.up.railway.app/api/analyze';
+  final String _url = 'http://localhost:8081/api/analyze';
 
   @override
   void initState() { super.initState(); if (widget.unlocked) _analyze(); }
@@ -3067,7 +3067,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
       final pdf = pw.Document(
         title: 'Protocol Run Report — ${patient['id']}',
         author: technician,
-        creator: 'TheraMeDx1 Sampler',
+        creator: 'Lab-on-Chip Monitor',
       );
 
       // ── Fonts ──
@@ -3107,7 +3107,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
                 pw.Text('Protocol Run Report',
                     style: ts(16, font: ttBold, color: PdfColors.white)),
                 pw.SizedBox(height: 3),
-                pw.Text('TheraMeDx1 Sampler\u2122  \u2014  IVD Device',
+                pw.Text('Lab-on-Chip Monitor  \u2014  IVD Device',
                     style: ts(9, color: PdfColor.fromInt(0x88FFFFFF))),
               ]),
               pw.Container(
@@ -3258,7 +3258,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
           pw.Divider(color: PdfColor.fromInt(0xFFE0E0E0), thickness: 0.5),
           pw.SizedBox(height: 6),
           pw.Text(
-            'This report is generated automatically by the TheraMeDx1 Sampler\u2122 '
+            'This report is generated automatically by the Lab-on-Chip Monitor '
             'software and is intended for authorised laboratory personnel only. '
             'Not for direct clinical use without physician review.',
             style: ts(7.5, color: grey),
@@ -3457,7 +3457,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
                   Text('Protocol Run Report',
                       style: TextStyle(fontSize: 15,
                           fontWeight: FontWeight.w800, color: Colors.white)),
-                  Text('TheraMeDx1 Sampler™  —  IVD Device',
+                  Text('Lab-on-Chip Monitor  —  IVD Device',
                       style: TextStyle(fontSize: 10, color: Colors.white38)),
                 ]),
               ),
@@ -3518,7 +3518,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
 
                 // Footer
                 const Text(
-                  'This report is generated automatically by the TheraMeDx1 Sampler™ '
+                  'This report is generated automatically by the Lab-on-Chip Monitor '
                   'software and is intended for authorised laboratory personnel only. '
                   'Not for direct clinical use without physician review.',
                   style: TextStyle(fontSize: 9, color: Colors.black26,

@@ -1,4 +1,4 @@
-name: temperature_monitor
+name: lab_on_chip_monitor
 description: Lab-on-Chip Medical Device Monitor
 
 publish_to: 'none'
