@@ -1,4 +1,4 @@
-# TheraMeDx1 Simulator
+# Lab-on-chip Monitor
 
 > A full-stack simulation of a **Lab-on-Chip medical device** for personalised cancer treatment. A C++ backend simulates hardware sensors and runs computer-vision-based drug efficacy analysis. A Flutter desktop frontend provides a real-time clinical dashboard for lab technicians.
 
