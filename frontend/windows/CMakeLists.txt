@@ -4,7 +4,7 @@ project(lab_on_chip_monitor LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
-set(BINARY_NAME "lab_on_chip_monitor")
+set(BINARY_NAME "Lab-on-Chip Monitor")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
