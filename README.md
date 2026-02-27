@@ -1,4 +1,4 @@
-# TheraMeDx1 Simulator (C++ + Flutter)
+# TheraMeDx1 Simulator (C++ & Flutter)
 
 Backend: C++ REST server
 Frontend: Flutter GUI
