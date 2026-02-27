@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:convert' show json, base64Decode, LineSplitter;
 import 'dart:io' show Directory, File, Process, Platform, SystemEncoding;
 import 'package:http/http.dart' as http;
@@ -1627,7 +1628,24 @@ class RunProtocolPanel extends StatelessWidget {
                   color: Colors.black54, height: 1.6)),
         ),
 
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
+
+        // ── Step animation illustration ──
+        Container(
+          height: 90,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8F9FF),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFF388BFF).withOpacity(0.1)),
+          ),
+          child: _StepAnimationWidget(
+            stepId: step.id,
+            running: runStatus == ProtocolStatus.running,
+          ),
+        ),
+
+        const SizedBox(height: 14),
 
         // Step progress bar
         if (step.durationSeconds > 0) ...[
@@ -1982,6 +2000,542 @@ class RunProtocolPanel extends StatelessWidget {
       ),
     );
   }
+}
+
+// ══════════════════════════════════════════
+//  STEP ANIMATIONS
+// ══════════════════════════════════════════
+
+/// Self-contained animated illustration for the active protocol step.
+/// Pauses automatically when [running] is false.
+class _StepAnimationWidget extends StatefulWidget {
+  final String stepId;
+  final bool running;
+  const _StepAnimationWidget({required this.stepId, required this.running});
+  @override
+  State<_StepAnimationWidget> createState() => _StepAnimationWidgetState();
+}
+
+class _StepAnimationWidgetState extends State<_StepAnimationWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    );
+    if (widget.running) _ctrl.repeat();
+  }
+
+  @override
+  void didUpdateWidget(_StepAnimationWidget old) {
+    super.didUpdateWidget(old);
+    if (old.stepId != widget.stepId) {
+      _ctrl.reset();
+      if (widget.running) _ctrl.repeat();
+    } else if (!old.running && widget.running) {
+      _ctrl.repeat();
+    } else if (old.running && !widget.running) {
+      _ctrl.stop();
+    }
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) {
+        final t = _ctrl.value; // 0..1 looping
+        final painter = _painterFor(widget.stepId, t);
+        if (painter == null) return const SizedBox.shrink();
+        return SizedBox(
+          height: 80,
+          child: CustomPaint(
+            painter: painter,
+            size: const Size(double.infinity, 80),
+          ),
+        );
+      },
+    );
+  }
+
+  CustomPainter? _painterFor(String id, double t) => switch (id) {
+    'intake'       => _IntakePainter(t),
+    'dissociation' => _DissociationPainter(t),
+    'droplets'     => _DropletPainter(t),
+    'drug_loading' => _DrugLoadingPainter(t),
+    'incubation'   => _IncubationPainter(t),
+    'imaging'      => _ImagingPainter(t),
+    'analysis'     => _AnalysisPainter(t),
+    'report'       => _ReportPainter(t),
+    _              => null,
+  };
+}
+
+// ── INTAKE: fluid flowing left→right through a channel ─────────────────────
+class _IntakePainter extends CustomPainter {
+  final double t;
+  _IntakePainter(this.t);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width; final h = size.height;
+    final mid = h / 2;
+    final paint = Paint()..style = PaintingStyle.stroke..strokeCap = StrokeCap.round;
+
+    // Channel walls
+    paint.color = const Color(0xFF388BFF).withOpacity(0.18);
+    paint.strokeWidth = 1;
+    canvas.drawLine(Offset(20, mid - 12), Offset(w - 20, mid - 12), paint);
+    canvas.drawLine(Offset(20, mid + 12), Offset(w - 20, mid + 12), paint);
+
+    // Inlet port (left circle)
+    paint.style = PaintingStyle.fill;
+    paint.color = const Color(0xFF388BFF).withOpacity(0.12);
+    canvas.drawCircle(Offset(20, mid), 12, paint);
+    paint.style = PaintingStyle.stroke;
+    paint.color = const Color(0xFF388BFF).withOpacity(0.5);
+    paint.strokeWidth = 1.5;
+    canvas.drawCircle(Offset(20, mid), 12, paint);
+
+    // Outlet port (right circle)
+    paint.style = PaintingStyle.fill;
+    paint.color = const Color(0xFF388BFF).withOpacity(0.08);
+    canvas.drawCircle(Offset(w - 20, mid), 9, paint);
+    paint.style = PaintingStyle.stroke;
+    paint.color = const Color(0xFF388BFF).withOpacity(0.3);
+    canvas.drawCircle(Offset(w - 20, mid), 9, paint);
+
+    // Fluid boluses moving right
+    const numBoluses = 4;
+    paint.style = PaintingStyle.fill;
+    for (int i = 0; i < numBoluses; i++) {
+      final phase = (t + i / numBoluses) % 1.0;
+      final x = 32 + (w - 64) * phase;
+      final alpha = (math.sin(phase * math.pi)).clamp(0.0, 1.0);
+      paint.color = const Color(0xFF388BFF).withOpacity(0.55 * alpha);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: Offset(x, mid), width: 18, height: 14),
+          const Radius.circular(7),
+        ),
+        paint,
+      );
+    }
+
+    // Arrow tip on right
+    paint.style = PaintingStyle.stroke;
+    paint.color = const Color(0xFF388BFF).withOpacity(0.35);
+    paint.strokeWidth = 1.5;
+    final ax = w - 34.0;
+    canvas.drawLine(Offset(ax, mid - 5), Offset(ax + 7, mid), paint);
+    canvas.drawLine(Offset(ax, mid + 5), Offset(ax + 7, mid), paint);
+  }
+
+  @override bool shouldRepaint(_IntakePainter old) => old.t != t;
+}
+
+// ── DISSOCIATION: cluster of dots breaking apart ────────────────────────────
+class _DissociationPainter extends CustomPainter {
+  final double t;
+  _DissociationPainter(this.t);
+
+  static const List<Offset> _startPos = [
+    Offset(0, 0), Offset(10, -8), Offset(-10, -8),
+    Offset(10, 8), Offset(-10, 8), Offset(0, 14), Offset(0, -14),
+  ];
+  static const List<Offset> _endDir = [
+    Offset(0, -18), Offset(22, -18), Offset(-22, -18),
+    Offset(22, 18),  Offset(-22, 18),  Offset(0, 28),  Offset(0, -28),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2; final cy = size.height / 2;
+    // ease in
+    final ease = t < 0.5
+        ? 2 * t * t
+        : 1 - math.pow(-2 * t + 2, 2) / 2;
+
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    for (int i = 0; i < _startPos.length; i++) {
+      final s = _startPos[i]; final d = _endDir[i];
+      final x = cx + s.dx + d.dx * ease;
+      final y = cy + s.dy + d.dy * ease;
+      final r = 5.5 - 1.5 * ease;
+      final alpha = 1.0 - ease * 0.3;
+      paint.color = i == 0
+          ? const Color(0xFF388BFF).withOpacity(0.85 * alpha)
+          : const Color(0xFF26C6A0).withOpacity(0.7 * alpha);
+      canvas.drawCircle(Offset(x, y), r, paint);
+    }
+
+    // Dashed ring showing original cluster boundary, fading out
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = const Color(0xFF388BFF).withOpacity((1 - ease) * 0.3);
+    canvas.drawCircle(Offset(cx, cy), 20, ringPaint);
+  }
+
+  @override bool shouldRepaint(_DissociationPainter old) => old.t != t;
+}
+
+// ── DROPLETS: small circles encapsulating dots, flowing right ───────────────
+class _DropletPainter extends CustomPainter {
+  final double t;
+  _DropletPainter(this.t);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width; final h = size.height;
+    final paint = Paint();
+
+    // Track (thin line)
+    paint.style = PaintingStyle.stroke;
+    paint.strokeWidth = 1;
+    paint.color = const Color(0xFF388BFF).withOpacity(0.12);
+    canvas.drawLine(Offset(10, h / 2), Offset(w - 10, h / 2), paint);
+
+    // 5 droplets at staggered positions
+    const n = 5;
+    for (int i = 0; i < n; i++) {
+      final phase = (t + i / n) % 1.0;
+      final x = 14 + (w - 28) * phase;
+      final y = h / 2;
+      final alpha = math.sin(phase * math.pi).clamp(0.0, 1.0);
+
+      // Outer droplet shell
+      paint.style = PaintingStyle.fill;
+      paint.color = const Color(0xFF388BFF).withOpacity(0.13 * alpha);
+      canvas.drawCircle(Offset(x, y), 11, paint);
+      paint.style = PaintingStyle.stroke;
+      paint.strokeWidth = 1.2;
+      paint.color = const Color(0xFF388BFF).withOpacity(0.5 * alpha);
+      canvas.drawCircle(Offset(x, y), 11, paint);
+
+      // Inner cell dot
+      paint.style = PaintingStyle.fill;
+      paint.color = const Color(0xFF26C6A0).withOpacity(0.8 * alpha);
+      canvas.drawCircle(Offset(x, y), 4, paint);
+    }
+  }
+
+  @override bool shouldRepaint(_DropletPainter old) => old.t != t;
+}
+
+// ── DRUG LOADING: wells filling up column by column ─────────────────────────
+class _DrugLoadingPainter extends CustomPainter {
+  final double t;
+  _DrugLoadingPainter(this.t);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width; final h = size.height;
+    const cols = 6; const rows = 2;
+    const wellW = 28.0; const wellH = 22.0; const gap = 6.0;
+
+    final totalW = cols * wellW + (cols - 1) * gap;
+    final totalH = rows * wellH + gap;
+    final ox = (w - totalW) / 2; final oy = (h - totalH) / 2;
+
+    final bgPaint  = Paint()..style = PaintingStyle.fill;
+    final rimPaint = Paint()
+      ..style = PaintingStyle.stroke..strokeWidth = 1.2;
+
+    // Drug colors cycling
+    const drugColors = [
+      Color(0xFF388BFF), Color(0xFF26C6A0), Color(0xFFFFA726),
+      Color(0xFFEF5350), Color(0xFFAB47BC), Color(0xFF26C6DA),
+    ];
+
+    for (int row = 0; row < rows; row++) {
+      for (int col = 0; col < cols; col++) {
+        final wx = ox + col * (wellW + gap);
+        final wy = oy + row * (wellH + gap);
+        final rect = RRect.fromRectAndRadius(
+          Rect.fromLTWH(wx, wy, wellW, wellH),
+          const Radius.circular(5),
+        );
+
+        // Fill threshold: animate by column then row
+        final wellIndex = row * cols + col;
+        final fillPhase = (t * (rows * cols) - wellIndex).clamp(0.0, 1.0);
+
+        bgPaint.color = const Color(0xFFF3F3F3);
+        canvas.drawRRect(rect, bgPaint);
+
+        if (fillPhase > 0) {
+          final col0 = drugColors[col % drugColors.length];
+          bgPaint.color = col0.withOpacity(0.25 * fillPhase);
+          // Clip fill to well
+          canvas.save();
+          canvas.clipRRect(rect);
+          final fillH = wellH * fillPhase;
+          canvas.drawRect(
+            Rect.fromLTWH(wx, wy + wellH - fillH, wellW, fillH),
+            Paint()..color = col0.withOpacity(0.35 * fillPhase),
+          );
+          canvas.restore();
+        }
+
+        rimPaint.color = const Color(0xFF388BFF).withOpacity(0.25);
+        canvas.drawRRect(rect, rimPaint);
+      }
+    }
+  }
+
+  @override bool shouldRepaint(_DrugLoadingPainter old) => old.t != t;
+}
+
+// ── INCUBATION: concentric pulsing rings (heat / temperature waves) ─────────
+class _IncubationPainter extends CustomPainter {
+  final double t;
+  _IncubationPainter(this.t);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2; final cy = size.height / 2;
+
+    // Central cell cluster dot
+    final dotPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = const Color(0xFFFFA726).withOpacity(0.9);
+    canvas.drawCircle(Offset(cx, cy), 7, dotPaint);
+
+    // 3 ripple rings expanding outward
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    const numRings = 3;
+    for (int i = 0; i < numRings; i++) {
+      final phase = (t + i / numRings) % 1.0;
+      final r = 10 + phase * 32;
+      final alpha = (1 - phase) * 0.6;
+      ringPaint.color = const Color(0xFFFFA726).withOpacity(alpha);
+      canvas.drawCircle(Offset(cx, cy), r, ringPaint);
+    }
+
+    // Temp label tick marks
+    final linePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = const Color(0xFFFFA726).withOpacity(0.2);
+    for (int i = 0; i < 6; i++) {
+      final angle = i * math.pi / 3;
+      final r1 = 48.0; final r2 = 55.0;
+      canvas.drawLine(
+        Offset(cx + math.cos(angle) * r1, cy + math.sin(angle) * r1),
+        Offset(cx + math.cos(angle) * r2, cy + math.sin(angle) * r2),
+        linePaint,
+      );
+    }
+  }
+
+  @override bool shouldRepaint(_IncubationPainter old) => old.t != t;
+}
+
+// ── IMAGING: scanning beam sweeping across a grid of wells ──────────────────
+class _ImagingPainter extends CustomPainter {
+  final double t;
+  _ImagingPainter(this.t);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width; final h = size.height;
+    const cols = 5; const rows = 2;
+    const cellW = 30.0; const cellH = 22.0; const gap = 5.0;
+
+    final totalW = cols * cellW + (cols - 1) * gap;
+    final totalH = rows * cellH + gap;
+    final ox = (w - totalW) / 2; final oy = (h - totalH) / 2;
+
+    // Total wells for scan progress
+    final totalCells = cols * rows;
+    final scanned = (t * totalCells).floor();
+
+    final bgPaint  = Paint()..style = PaintingStyle.fill;
+    final rimPaint = Paint()
+      ..style = PaintingStyle.stroke..strokeWidth = 1.2;
+
+    for (int row = 0; row < rows; row++) {
+      for (int col = 0; col < cols; col++) {
+        final index = row * cols + col;
+        final cx = ox + col * (cellW + gap) + cellW / 2;
+        final cy = oy + row * (cellH + gap) + cellH / 2;
+        final rect = RRect.fromRectAndRadius(
+          Rect.fromLTWH(cx - cellW / 2, cy - cellH / 2, cellW, cellH),
+          const Radius.circular(4),
+        );
+
+        if (index < scanned) {
+          // Scanned: green glow
+          bgPaint.color = const Color(0xFF26C6A0).withOpacity(0.15);
+          canvas.drawRRect(rect, bgPaint);
+          rimPaint.color = const Color(0xFF26C6A0).withOpacity(0.5);
+          // Draw a tiny cell dot
+          canvas.drawCircle(Offset(cx, cy), 3,
+              Paint()..color = const Color(0xFF26C6A0).withOpacity(0.6));
+        } else if (index == scanned) {
+          // Currently being scanned: bright highlight
+          bgPaint.color = const Color(0xFF388BFF).withOpacity(0.18);
+          canvas.drawRRect(rect, bgPaint);
+          rimPaint.color = const Color(0xFF388BFF).withOpacity(0.8);
+          // Scan line animation
+          final subPhase = (t * totalCells) - scanned;
+          final lineY = (cy - cellH / 2) + cellH * subPhase;
+          canvas.drawLine(
+            Offset(cx - cellW / 2 + 2, lineY),
+            Offset(cx + cellW / 2 - 2, lineY),
+            Paint()
+              ..color = const Color(0xFF388BFF).withOpacity(0.7)
+              ..strokeWidth = 1.5,
+          );
+        } else {
+          bgPaint.color = const Color(0xFFF3F3F3);
+          canvas.drawRRect(rect, bgPaint);
+          rimPaint.color = const Color(0xFF388BFF).withOpacity(0.15);
+        }
+        canvas.drawRRect(rect, rimPaint);
+      }
+    }
+  }
+
+  @override bool shouldRepaint(_ImagingPainter old) => old.t != t;
+}
+
+// ── ANALYSIS: bar chart bars animating up ───────────────────────────────────
+class _AnalysisPainter extends CustomPainter {
+  final double t;
+  _AnalysisPainter(this.t);
+
+  static const List<double> _targets = [0.55, 0.9, 0.4, 0.75, 0.65, 0.85, 0.5];
+  static const List<Color> _barColors = [
+    Color(0xFF388BFF), Color(0xFF26C6A0), Color(0xFF388BFF),
+    Color(0xFF26C6A0), Color(0xFF388BFF), Color(0xFF26C6A0), Color(0xFF388BFF),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width; final h = size.height;
+    final n = _targets.length;
+    const barW = 18.0; const gap = 8.0;
+    final totalW = n * barW + (n - 1) * gap;
+    final ox = (w - totalW) / 2; final baseY = h - 8.0;
+    final maxH = h - 20;
+
+    final paint = Paint()..style = PaintingStyle.fill;
+    final axisPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = const Color(0xFF388BFF).withOpacity(0.15);
+    canvas.drawLine(Offset(ox - 4, baseY), Offset(ox + totalW + 4, baseY), axisPaint);
+
+    for (int i = 0; i < n; i++) {
+      // Stagger bar appearance
+      final delay = i / n * 0.5;
+      final localT = ((t - delay) / 0.6).clamp(0.0, 1.0);
+      // Ease out
+      final ease = 1 - math.pow(1 - localT, 3);
+      final bh = _targets[i] * maxH * ease;
+      final x = ox + i * (barW + gap);
+
+      paint.color = _barColors[i % _barColors.length].withOpacity(0.75);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, baseY - bh, barW, bh),
+          const Radius.circular(3),
+        ),
+        paint,
+      );
+
+      // Highlight top
+      if (i == 1 || i == 5) {
+        paint.color = const Color(0xFF26C6A0).withOpacity(0.5);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(x, baseY - bh, barW, 3),
+            const Radius.circular(2),
+          ),
+          paint,
+        );
+      }
+    }
+  }
+
+  @override bool shouldRepaint(_AnalysisPainter old) => old.t != t;
+}
+
+// ── REPORT: checkmark drawing itself ────────────────────────────────────────
+class _ReportPainter extends CustomPainter {
+  final double t;
+  _ReportPainter(this.t);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2; final cy = size.height / 2;
+
+    // Document outline
+    final docPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = const Color(0xFF26C6A0).withOpacity(0.3);
+    const dw = 44.0; const dh = 54.0;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset(cx, cy), width: dw, height: dh),
+        const Radius.circular(5),
+      ),
+      docPaint,
+    );
+
+    // Horizontal lines (text placeholders)
+    final linePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF26C6A0).withOpacity(0.2);
+    for (int i = 0; i < 3; i++) {
+      final lx = cx - 14 + (i == 2 ? 6 : 0);
+      final rx = cx + (i == 2 ? 2 : 14);
+      final ly = cy - 10 + i * 10.0;
+      canvas.drawLine(Offset(lx, ly), Offset(rx, ly), linePaint);
+    }
+
+    // Animated checkmark
+    final checkPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = const Color(0xFF26C6A0).withOpacity(0.9);
+
+    // Checkmark path: two segments
+    // segment 1: small down-left stroke (0..0.4)
+    // segment 2: long up-right stroke (0.4..1.0)
+    final p1 = Offset(cx - 14, cy + 16);
+    final p2 = Offset(cx - 6,  cy + 25);
+    final p3 = Offset(cx + 14, cy + 5);
+
+    if (t < 0.4) {
+      final s = t / 0.4;
+      canvas.drawLine(p1, Offset.lerp(p1, p2, s)!, checkPaint);
+    } else {
+      canvas.drawLine(p1, p2, checkPaint);
+      final s = (t - 0.4) / 0.6;
+      canvas.drawLine(p2, Offset.lerp(p2, p3, s)!, checkPaint);
+    }
+  }
+
+  @override bool shouldRepaint(_ReportPainter old) => old.t != t;
 }
 
 class _PulseDot extends StatefulWidget {
