@@ -193,6 +193,12 @@ int main() {
         res.set_content("{\"status\":\"active\",\"wells\":20}","application/json");
     });
     std::cout<<"Oncology analyzer on http://0.0.0.0:8081"<<std::endl;
-    server.listen("0.0.0.0",8081);
+    int port = 8081;  // fallback for local dev
+
+if (std::getenv("PORT")) {
+    port = std::stoi(std::getenv("PORT"));
+}
+
+server.listen("0.0.0.0", port);
     return 0;
 }
