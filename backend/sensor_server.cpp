@@ -305,14 +305,12 @@ int main() {
             + std::string(loggerRunning.load()?"true":"false") + "}", "application/json");
     });
 
-    std::cout << "Lab-on-Chip Monitor running on port " << port << std::endl;
+    int port = 8080;
+    if (std::getenv("PORT")) port = std::stoi(std::getenv("PORT"));
+
+    std::cout << "Lab-on-Chip Monitor -> http://0.0.0.0:" << port << std::endl;
     std::cout << "CSV logs            -> " << LOG_DIR << "/" << std::endl;
     std::cout << "Start: POST /api/logger/start | Stop: POST /api/logger/stop" << std::endl;
-    int port = 8080;  // fallback for local dev
-
-    if (std::getenv("PORT")) {
-        port = std::stoi(std::getenv("PORT"));
-    }
 
     server.listen("0.0.0.0", port);
     return 0;
