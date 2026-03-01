@@ -1432,7 +1432,7 @@ class RunProtocolPanel extends StatelessWidget {
             Text(patient['diagnosis'] ?? '',
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
                     color: Color(0xFF1A1A2E))),
-            const Text('Lab-on-Chip Monitor — Run Protocol',
+            const Text('TheraMeDx1 Sampler™ — Run Protocol',
                 style: TextStyle(fontSize: 11, color: Colors.black38)),
           ]),
           const Spacer(),
@@ -1731,7 +1731,7 @@ class RunProtocolPanel extends StatelessWidget {
       const Padding(
         padding: EdgeInsets.symmetric(horizontal: 40),
         child: Text(
-          'Start the Lab-on-Chip Monitor protocol for this patient sample.\n'
+          'Start the TheraMeDx1 Sampler™ protocol for this patient sample.\n'
           'Ensure chip is loaded and all environment sensors are nominal.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 12, color: Colors.black38, height: 1.6),
@@ -3083,7 +3083,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
       final pdf = pw.Document(
         title: 'Protocol Run Report — ${patient['id']}',
         author: technician,
-        creator: 'Mattéo Meister — meister.matteo@outlook.com',
+        creator: 'TheraMeDx1 Sampler',
       );
 
       // ── Fonts ──
@@ -3123,7 +3123,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
                 pw.Text('Protocol Run Report',
                     style: ts(16, font: ttBold, color: PdfColors.white)),
                 pw.SizedBox(height: 3),
-                pw.Text('Lab-on-Chip Monitor\u2122  \u2014  IVD Device',
+                pw.Text('TheraMeDx1 Sampler\u2122  \u2014  IVD Device',
                     style: ts(9, color: PdfColor.fromInt(0x88FFFFFF))),
               ]),
               pw.Container(
@@ -3274,9 +3274,9 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
           pw.Divider(color: PdfColor.fromInt(0xFFE0E0E0), thickness: 0.5),
           pw.SizedBox(height: 6),
           pw.Text(
-            'This report is generated automatically by the Lab-on-Chip Monitor. Built by Mattéo Meister (meister.matteo@outlook.com). '
-            'software and is intended for authorised laboratory personnel only. '
-            'Not for direct clinical use without physician review.',
+            'This report is generated automatically by the Lab-on-Chip Monitor. '
+            'Built by Mattéo Meister (meister.matteo@outlook.com). '
+            'Intended for authorised laboratory personnel only. Not for direct clinical use without physician review.',
             style: ts(7.5, color: grey),
           ),
         ],
@@ -3399,7 +3399,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
         cell(pw.Text('${i+1}',
             style: pw.TextStyle(font: reg, fontSize: 8,
                 color: PdfColor.fromInt(0xFF999999)))),
-        cell(pw.Text(step.icon,
+        cell(pw.Text('',
             style: pw.TextStyle(font: reg, fontSize: 10))),
         cell(pw.Text(step.title,
             style: pw.TextStyle(font: bold, fontSize: 9,
@@ -3473,7 +3473,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
                   Text('Protocol Run Report',
                       style: TextStyle(fontSize: 15,
                           fontWeight: FontWeight.w800, color: Colors.white)),
-                  Text('Lab-on-Chip Monitor  —  IVD Device',
+                  Text('TheraMeDx1 Sampler™  —  IVD Device',
                       style: TextStyle(fontSize: 10, color: Colors.white38)),
                 ]),
               ),
@@ -3534,9 +3534,9 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
 
                 // Footer
                 const Text(
-                  'This report is generated automatically by the Lab-on-Chip Monitor. Built by Mattéo Meister (meister.matteo@outlook.com). '
-                  'software and is intended for authorised laboratory personnel only. '
-                  'Not for direct clinical use without physician review.',
+                  'This report is generated automatically by the Lab-on-Chip Monitor. '
+                  'Built by Mattéo Meister (meister.matteo@outlook.com). '
+                  'Intended for authorised laboratory personnel only. Not for direct clinical use without physician review.',
                   style: TextStyle(fontSize: 9, color: Colors.black26,
                       fontStyle: FontStyle.italic, height: 1.5),
                 ),
