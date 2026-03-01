@@ -1002,7 +1002,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
             const SizedBox(width: 12),
             statusBadge(_connected, _status,
                 onTap: _connected ? null
-                    : () => Platform.isMacOS ? launchDocker(context, 'temp-sensor', 8080) : _fetchData()),
+                    : () => Platform.isMacOS ? launchDocker(context, 'temp-sensor', 8080) : _fetch()),
           ]),
         ]),
 
@@ -2165,6 +2165,7 @@ class _OncologyPanelState extends State<OncologyPanel> {
             child: statusBadge(_connected, _status,
                 onTap: _connected ? null
                     : () => Platform.isMacOS ? launchDocker(context, 'cell-analyzer', 8081) : _analyze())),
+        ]),
       ]),
     ]),
   );
