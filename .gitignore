@@ -28,14 +28,11 @@ logs/
 .vscode/
 .idea/
 *.iml
-backend/.idea/
-frontend/.idea/
-frontend/android/.gradle/
-.DS_Store
-frontend/android/
-frontend/ios/
-frontend/linux/
-frontend/web/
+
+# Build artifacts
+*.dmg
+*.zip
+frontend/build/
 
 # Unused platforms
 frontend/android/
