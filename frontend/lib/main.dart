@@ -3,7 +3,15 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:convert' show json, base64Decode, LineSplitter;
-import 'dart:io' show Directory, File, Process, Platform, SystemEncoding, HttpClient, HttpOverrides, X509Certificate;
+import 'dart:io';
+
+import 'package:http/http.dart' as http;
+import 'package:fl_chart/fl_chart.dart';
+import 'package:window_manager/window_manager.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:path_provider/path_provider.dart';
 
 class _TrustAllCerts extends HttpOverrides {
   @override
@@ -12,13 +20,6 @@ class _TrustAllCerts extends HttpOverrides {
       ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
   }
 }
-import 'package:http/http.dart' as http;
-import 'package:fl_chart/fl_chart.dart';
-import 'package:window_manager/window_manager.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
-import 'package:path_provider/path_provider.dart';
 
 void main() async {
   HttpOverrides.global = _TrustAllCerts();
