@@ -25,21 +25,31 @@ A full-stack simulation of a **lab-on-chip medical device** for personalised can
 
 ## Screenshots
 
+<div align="center">
 <img src="docs/screenshots/Login.png" width="700"/>
+<br/><sub>Login screen.</sub>
+</div>
 
-*Login screen.*
+<br/>
 
+<div align="center">
 <img src="docs/screenshots/Environment.png" width="700"/>
+<br/><sub>Real-time incubation environment monitoring across 6 sensors, updated every second.</sub>
+</div>
 
-*Real-time incubation environment monitoring across 6 sensors, updated every second.*
+<br/>
 
+<div align="center">
 <img src="docs/screenshots/Protocol.png" width="700"/>
+<br/><sub>8-step automated protocol state machine with live progress tracking.</sub>
+</div>
 
-*8-step automated protocol state machine with live progress tracking.*
+<br/>
 
+<div align="center">
 <img src="docs/screenshots/Oncology.png" width="700"/>
-
-*OpenCV-based oncology analysis ranking 20 drugs by tumour cell kill rate.*
+<br/><sub>OpenCV-based oncology analysis ranking 20 drugs by tumour cell kill rate.</sub>
+</div>
 
 ---
 
@@ -121,4 +131,6 @@ sequenceDiagram
 
 ---
 
-Built by **Mattéo Meister** · [meister.matteo@outlook.com](mailto:meister.matteo@outlook.com) · [GitHub](https://github.com/matteomeister-engineer)
+<div align="center">
+Built by <b>Mattéo Meister</b> · <a href="mailto:meister.matteo@outlook.com">meister.matteo@outlook.com</a> · <a href="https://github.com/matteomeister-engineer">GitHub</a>
+</div>
