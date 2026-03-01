@@ -12,6 +12,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class _TrustAllCerts extends HttpOverrides {
   @override
@@ -99,6 +100,7 @@ class _LoginScreenState extends State<LoginScreen>
   final _passCtrl = TextEditingController(text: 'admin123');
   bool _obscure = true;
   String? _error;
+  String _version = '';
   late AnimationController _rotCtrl;
 
   @override
@@ -108,6 +110,9 @@ class _LoginScreenState extends State<LoginScreen>
       vsync: this,
       duration: const Duration(seconds: 20),
     )..repeat();
+    PackageInfo.fromPlatform().then((info) {
+      setState(() => _version = 'v\${info.version}');
+    });
   }
 
   @override
@@ -131,7 +136,8 @@ class _LoginScreenState extends State<LoginScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFD3D6FE),
-      body: Center(
+      body: Stack(children: [
+        Center(
         child: SizedBox(width: 380,
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
 
@@ -218,7 +224,16 @@ class _LoginScreenState extends State<LoginScreen>
           ]),
         ),
       ),
-    );
+      // Version number at bottom
+      Positioned(
+        bottom: 16,
+        left: 0, right: 0,
+        child: Center(
+          child: Text(_version,
+              style: const TextStyle(fontSize: 10, color: Color(0xFF170345))),
+        ),
+      ),
+    ]);
   }
 
   Widget _field(String label, TextEditingController ctrl, bool obscure, {Widget? suffix}) =>
@@ -387,28 +402,28 @@ class _MainDashboardState extends State<MainDashboard> {
   final List<ProtocolStep> _steps = [
     ProtocolStep(id:'intake',       title:'Sample Intake',
         description:'Biopsy sample loaded into inlet port. System priming microfluidic channels.',
-        icon:'🧫', durationSeconds:120),
+        icon:Icons.science, durationSeconds:120),
     ProtocolStep(id:'dissociation', title:'Cell Dissociation',
         description:'Enzymatic dissociation of tumor tissue into single-cell suspension.',
-        icon:'⚗️', durationSeconds:300),
+        icon:Icons.biotech, durationSeconds:300),
     ProtocolStep(id:'droplets',     title:'Droplet Generation',
         description:'Cells encapsulated in picoliter droplets. Target: 1 cell / droplet.',
-        icon:'💧', durationSeconds:180),
+        icon:Icons.water_drop, durationSeconds:180),
     ProtocolStep(id:'drug_loading', title:'Drug Combination Loading',
         description:'Combinatorial drug library injected into droplet array across 24 wells.',
-        icon:'💊', durationSeconds:240),
+        icon:Icons.medication, durationSeconds:240),
     ProtocolStep(id:'incubation',   title:'Incubation',
         description:'Cells incubated with drugs at 37°C, 5% CO₂ for 48h. Environment monitored continuously.',
-        icon:'🌡', durationSeconds:600),
+        icon:Icons.thermostat, durationSeconds:600),
     ProtocolStep(id:'imaging',      title:'Fluorescence Imaging',
         description:'Automated microscopy scan of all wells. Viability markers imaged per droplet.',
-        icon:'🔬', durationSeconds:300),
+        icon:Icons.microscope, durationSeconds:300),
     ProtocolStep(id:'analysis',     title:'Data Analysis & Ranking',
         description:'ML model scores drug efficacy. Top combinations ranked and quality-controlled.',
-        icon:'📊', durationSeconds:120),
+        icon:Icons.bar_chart, durationSeconds:120),
     ProtocolStep(id:'report',       title:'Report Ready',
         description:'Results validated. Clinical report available for physician review.',
-        icon:'📋', durationSeconds:0),
+        icon:Icons.assignment, durationSeconds:0),
   ];
 
   // Oncology is unlocked once imaging step is reached
@@ -1377,7 +1392,8 @@ enum ProtocolStatus { idle, running, paused, completed, aborted }
 enum StepStatus     { pending, active, done, failed }
 
 class ProtocolStep {
-  final String id, title, description, icon;
+  final String id, title, description;
+  final IconData icon;
   final int durationSeconds; // nominal duration for progress bar
   StepStatus status;
   int elapsedSeconds;
@@ -1549,7 +1565,7 @@ class RunProtocolPanel extends StatelessWidget {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
             children: [
           Row(children: [
-            Text(step.icon, style: const TextStyle(fontSize: 12)),
+            Icon(step.icon, size: 14, color: const Color(0xFF1A3A6E)),
             const SizedBox(width: 5),
             Flexible(child: Text(step.title,
                 overflow: TextOverflow.ellipsis,
@@ -1612,7 +1628,7 @@ class RunProtocolPanel extends StatelessWidget {
 
         // Header row
         Row(children: [
-          Text(step.icon, style: const TextStyle(fontSize: 28)),
+          Icon(step.icon, size: 28, color: const Color(0xFF1A3A6E)),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1753,7 +1769,7 @@ class RunProtocolPanel extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(color: const Color(0xFFF3F3F3),
               borderRadius: BorderRadius.circular(20)),
-          child: Text('${s.icon} ${s.title}',
+          child: Text(s.title,
               style: const TextStyle(fontSize: 10, color: Colors.black45)),
         )).toList()),
     ]),
@@ -2115,9 +2131,11 @@ class _OncologyPanelState extends State<OncologyPanel> {
   }
 
   Future<void> _analyze() async {
+    if (!mounted) return;
     setState(() { _loading = true; _status = 'Analysing...'; });
     try {
       final r = await http.get(Uri.parse(_url)).timeout(const Duration(seconds: 60));
+      if (!mounted) return;
       if (r.statusCode == 200) {
         final d = json.decode(r.body);
         setState(() {
@@ -2131,6 +2149,7 @@ class _OncologyPanelState extends State<OncologyPanel> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() { _connected = false; _status = 'Error: $e'; _loading = false; });
     }
   }
@@ -3759,8 +3778,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
                 fontSize: 10, color: Colors.black38))),
         // Icon
         Padding(padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Text(step.icon,
-                style: const TextStyle(fontSize: 13))),
+            child: const SizedBox.shrink()),
         // Title
         Padding(padding: const EdgeInsets.symmetric(
             horizontal: 10, vertical: 10),
