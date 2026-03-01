@@ -103,7 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF3889FE),
+      backgroundColor: const Color(0xFFD3D6FE),
       body: Center(
         child: SizedBox(width: 380,
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -112,17 +112,17 @@ class _LoginScreenState extends State<LoginScreen> {
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: const Color(0xFF170345).withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.biotech, size: 48, color: Colors.white),
+              child: Image.asset('assets/icon/icon.png', width: 80, height: 80),
             ),
             const SizedBox(height: 20),
             const Text('Lab-on-Chip Monitor',
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800,
-                    color: Colors.white)),
+                    color: Color(0xFF170345))),
             const Text('Diagnostic Platform',
-                style: TextStyle(fontSize: 13, color: Colors.white54)),
+                style: TextStyle(fontSize: 13, color: Color(0xFF170345))),
 
             const SizedBox(height: 40),
 
@@ -175,7 +175,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: ElevatedButton(
                     onPressed: _login,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1A3A6E),
+                      backgroundColor: const Color(0xFF170345),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -211,7 +211,7 @@ class _LoginScreenState extends State<LoginScreen> {
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
             borderSide: const BorderSide(color: Colors.black12)),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Color(0xFF1A3A6E), width: 1.5)),
+            borderSide: const BorderSide(color: Color(0xFF170345), width: 1.5)),
       ),
     );
 }
@@ -1291,7 +1291,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
               Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1A3A6E),
+              backgroundColor: const Color(0xFF170345),
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
@@ -1416,7 +1416,7 @@ class RunProtocolPanel extends StatelessWidget {
             Text(patient['diagnosis'] ?? '',
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
                     color: Color(0xFF1A1A2E))),
-            const Text('Lab-on-Chip Monitor — Run Protocol',
+            const Text('TheraMeDx1 Sampler™ — Run Protocol',
                 style: TextStyle(fontSize: 11, color: Colors.black38)),
           ]),
           const Spacer(),
@@ -1715,7 +1715,7 @@ class RunProtocolPanel extends StatelessWidget {
       const Padding(
         padding: EdgeInsets.symmetric(horizontal: 40),
         child: Text(
-          'Start the Lab-on-Chip Monitor protocol for this patient sample.\n'
+          'Start the TheraMeDx1 Sampler™ protocol for this patient sample.\n'
           'Ensure chip is loaded and all environment sensors are nominal.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 12, color: Colors.black38, height: 1.6),
@@ -3067,7 +3067,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
       final pdf = pw.Document(
         title: 'Protocol Run Report — ${patient['id']}',
         author: technician,
-        creator: 'Lab-on-Chip Monitor',
+        creator: 'TheraMeDx1 Sampler',
       );
 
       // ── Fonts ──
@@ -3107,7 +3107,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
                 pw.Text('Protocol Run Report',
                     style: ts(16, font: ttBold, color: PdfColors.white)),
                 pw.SizedBox(height: 3),
-                pw.Text('Lab-on-Chip Monitor  \u2014  IVD Device',
+                pw.Text('TheraMeDx1 Sampler\u2122  \u2014  IVD Device',
                     style: ts(9, color: PdfColor.fromInt(0x88FFFFFF))),
               ]),
               pw.Container(
@@ -3258,7 +3258,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
           pw.Divider(color: PdfColor.fromInt(0xFFE0E0E0), thickness: 0.5),
           pw.SizedBox(height: 6),
           pw.Text(
-            'This report is generated automatically by the Lab-on-Chip Monitor '
+            'This report is generated automatically by the TheraMeDx1 Sampler\u2122 '
             'software and is intended for authorised laboratory personnel only. '
             'Not for direct clinical use without physician review.',
             style: ts(7.5, color: grey),
@@ -3457,7 +3457,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
                   Text('Protocol Run Report',
                       style: TextStyle(fontSize: 15,
                           fontWeight: FontWeight.w800, color: Colors.white)),
-                  Text('Lab-on-Chip Monitor  —  IVD Device',
+                  Text('TheraMeDx1 Sampler™  —  IVD Device',
                       style: TextStyle(fontSize: 10, color: Colors.white38)),
                 ]),
               ),
@@ -3518,7 +3518,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
 
                 // Footer
                 const Text(
-                  'This report is generated automatically by the Lab-on-Chip Monitor '
+                  'This report is generated automatically by the TheraMeDx1 Sampler™ '
                   'software and is intended for authorised laboratory personnel only. '
                   'Not for direct clinical use without physician review.',
                   style: TextStyle(fontSize: 9, color: Colors.black26,
