@@ -468,9 +468,9 @@ class _MainDashboardState extends State<MainDashboard> {
           _runStatus = ProtocolStatus.completed;
           _steps.last.status = StepStatus.done;
           _protocolTicker?.cancel();
-          // Auto-generate PDF report when protocol completes
+          // Auto-show report when protocol completes
           Future.delayed(const Duration(milliseconds: 500), () {
-            if (mounted) _exportPdf();
+            if (mounted) _autoShowReport();
           });
         }
       }
@@ -519,12 +519,22 @@ class _MainDashboardState extends State<MainDashboard> {
         _runStatus = ProtocolStatus.completed;
         _steps.last.status = StepStatus.done;
         _protocolTicker?.cancel();
-        // Auto-generate PDF report when skipping to last step
+        // Auto-show report when skipping to last step
         Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) _exportPdf();
+          if (mounted) _autoShowReport();
         });
       }
     });
+  }
+
+  void _autoShowReport() {
+    showProtocolReport(
+      context,
+      patient:      widget.patient,
+      steps:        _steps,
+      totalElapsed: _totalElapsed,
+      technician:   widget.technician,
+    );
   }
 
   @override
