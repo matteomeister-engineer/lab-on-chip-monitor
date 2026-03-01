@@ -25,13 +25,17 @@ A full-stack simulation of a **lab-on-chip medical device** for personalised can
 
 ## Screenshots
 
-| Login | Environment |
-|---|---|
-| ![Login](docs/screenshots/Login.png) | ![Environment](docs/screenshots/Environment.png) |
+The login screen with a slowly rotating logo animation.
+![Login](docs/screenshots/Login.png)
 
-| Protocol | Oncology |
-|---|---|
-| ![Protocol](docs/screenshots/Protocol.png) | ![Oncology](docs/screenshots/Oncology.png) |
+Real-time incubation environment monitoring across 6 sensors, updated every second.
+![Environment](docs/screenshots/Environment.png)
+
+8-step automated protocol state machine with live progress tracking.
+![Protocol](docs/screenshots/Protocol.png)
+
+OpenCV-based oncology analysis ranking 20 drugs by tumour cell kill rate.
+![Oncology](docs/screenshots/Oncology.png)
 
 ---
 
