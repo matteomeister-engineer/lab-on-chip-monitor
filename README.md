@@ -96,3 +96,15 @@ sequenceDiagram
 | Vision backend | C++17, OpenCV 4 — SimpleBlobDetector |
 | Deployment | Docker → Railway cloud |
 | CI/CD | GitHub Actions → .dmg + .exe releases |
+
+---
+
+Built by **Mattéo Meister** · [meister.matteo@outlook.com](mailto:meister.matteo@outlook.com) · [GitHub](https://github.com/matteomeister-engineer)
+
+---
+
+Built by **Mattéo Meister** · [meister.matteo@outlook.com](mailto:meister.matteo@outlook.com) · [GitHub](https://github.com/matteomeister-engineer)
+
+---
+
+Built by **Mattéo Meister** · [meister.matteo@outlook.com](mailto:meister.matteo@outlook.com) · [GitHub](https://github.com/matteomeister-engineer)
