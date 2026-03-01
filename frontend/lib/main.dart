@@ -419,14 +419,11 @@ class _MainDashboardState extends State<MainDashboard> {
     ProtocolStep(id:'analysis',     title:'Data Analysis & Ranking',
         description:'ML model scores drug efficacy. Top combinations ranked and quality-controlled.',
         icon:Icons.bar_chart, durationSeconds:120),
-    ProtocolStep(id:'report',       title:'Report Ready',
-        description:'Results validated. Clinical report available for physician review.',
-        icon:Icons.assignment, durationSeconds:0),
   ];
 
   // Oncology is unlocked once imaging step is reached
   bool get _oncologyUnlocked {
-    const unlockedAt = {'imaging', 'analysis', 'report'};
+    const unlockedAt = {'imaging', 'analysis'};
     if (_runStatus == ProtocolStatus.completed) return true;
     if (_activeStep >= _steps.length) return true;
     return unlockedAt.contains(_steps[_activeStep].id) ||
@@ -464,14 +461,16 @@ class _MainDashboardState extends State<MainDashboard> {
         if (_activeStep < _steps.length - 1) {
           _activeStep++;
           _steps[_activeStep].status = StepStatus.active;
+          // If next step has 0 duration, complete it immediately
+          if (_steps[_activeStep].durationSeconds == 0) {
+            _steps[_activeStep].status = StepStatus.done;
+            _runStatus = ProtocolStatus.completed;
+            _protocolTicker?.cancel();
+          }
         } else {
           _runStatus = ProtocolStatus.completed;
           _steps.last.status = StepStatus.done;
           _protocolTicker?.cancel();
-          // Auto-show report when protocol completes
-          Future.delayed(const Duration(milliseconds: 500), () {
-            if (mounted) _autoShowReport();
-          });
         }
       }
     });
@@ -519,10 +518,6 @@ class _MainDashboardState extends State<MainDashboard> {
         _runStatus = ProtocolStatus.completed;
         _steps.last.status = StepStatus.done;
         _protocolTicker?.cancel();
-        // Auto-show report when skipping to last step
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) _autoShowReport();
-        });
       }
     });
   }
@@ -2279,7 +2274,7 @@ class _OncologyPanelState extends State<OncologyPanel> {
                   '🧫 Intake', '⚗️ Dissociation', '💧 Droplets',
                   '💊 Drug Loading', '🌡 Incubation', '🔬 Imaging',
                 ].asMap().entries.map((e) {
-                  const unlockedAt = {'imaging', 'analysis', 'report'};
+                  const unlockedAt = {'imaging', 'analysis'};
                   final stepIds = ['intake','dissociation','droplets',
                                    'drug_loading','incubation','imaging'];
                   final sid     = stepIds[e.key];
