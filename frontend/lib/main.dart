@@ -216,22 +216,22 @@ class _LoginScreenState extends State<LoginScreen>
                 const SizedBox(height: 16),
                 const Center(child: Text('Pre-filled: admin / admin123',
                     style: TextStyle(fontSize: 11, color: Colors.black26))),
-              ]),
-            ),
-          ]),
+              ]),       // Column children
+            ),             // Container (login card)
+            ]),            // Column children (outer)
+          ),               // SizedBox
+        ),                 // Center
+        // Version number at bottom
+        Positioned(
+          bottom: 16,
+          left: 0, right: 0,
+          child: Center(
+            child: Text(_version,
+                style: const TextStyle(fontSize: 10, color: Color(0xFF170345))),
           ),
         ),
-      ),
-      // Version number at bottom
-      Positioned(
-        bottom: 16,
-        left: 0, right: 0,
-        child: Center(
-          child: Text(_version,
-              style: const TextStyle(fontSize: 10, color: Color(0xFF170345))),
-        ),
-      ),
-    ]);
+      ]),                  // Stack children
+    );                     // Scaffold
   }
 
   Widget _field(String label, TextEditingController ctrl, bool obscure, {Widget? suffix}) =>
