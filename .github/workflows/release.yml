@@ -32,13 +32,9 @@ jobs:
           echo "Version injected: $TAG"
           grep "_version" lib/main.dart
 
-      - name: Create macOS project files
-        working-directory: frontend
-        run: flutter create --platforms=macos .
-
       - name: Build macOS
         working-directory: frontend
-        run: flutter build macos --release
+        run: flutter build macos --release --no-tree-shake-icons
 
       - name: Install create-dmg
         run: brew install create-dmg
