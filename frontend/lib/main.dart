@@ -468,6 +468,10 @@ class _MainDashboardState extends State<MainDashboard> {
           _runStatus = ProtocolStatus.completed;
           _steps.last.status = StepStatus.done;
           _protocolTicker?.cancel();
+          // Auto-generate PDF report when protocol completes
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) _exportPdf();
+          });
         }
       }
     });
@@ -515,6 +519,10 @@ class _MainDashboardState extends State<MainDashboard> {
         _runStatus = ProtocolStatus.completed;
         _steps.last.status = StepStatus.done;
         _protocolTicker?.cancel();
+        // Auto-generate PDF report when skipping to last step
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) _exportPdf();
+        });
       }
     });
   }
