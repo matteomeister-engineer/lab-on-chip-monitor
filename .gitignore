@@ -32,3 +32,13 @@ backend/.idea/
 frontend/.idea/
 frontend/android/.gradle/
 .DS_Store
+frontend/android/
+frontend/ios/
+frontend/linux/
+frontend/web/
+
+# Unused platforms
+frontend/android/
+frontend/ios/
+frontend/linux/
+frontend/web/
