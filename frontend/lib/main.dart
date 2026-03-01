@@ -109,7 +109,7 @@ class _LoginScreenState extends State<LoginScreen>
       vsync: this,
       duration: const Duration(seconds: 20),
     )..repeat();
-    setState(() => _version = 'v1.2.7');
+    setState(() => _version = 'v1.2.8');
   }
 
   @override
