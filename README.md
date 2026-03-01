@@ -13,17 +13,31 @@ A full-stack simulation of a **lab-on-chip medical device** for personalised can
 | **macOS** | `Lab-on-Chip-Monitor-macOS.dmg` | Open → drag app to Applications → right-click → Open |
 | **Windows** | `Lab-on-Chip-Monitor-Windows.zip` | Extract → run `lab_on_chip_monitor.exe` |
 
-> No setup needed. The app connects automatically to cloud backends.
+> No setup needed. No Docker. No terminal. The app connects automatically to cloud backends.
 
-> **macOS note:** Right-click the app and choose **Open** the first time — this bypasses the Gatekeeper warning for unsigned apps.
+> **Login:** `admin` / `admin123`
+
+> **macOS:** Right-click the app → **Open** the first time to bypass Gatekeeper.
+
+> **First launch:** Cloud backends may take 10–20 seconds to wake up. If you see "Disconnected", wait a moment.
+
+---
+
+## Screenshots
+
+| Login | Environment |
+|---|---|
+| ![Login](docs/screenshots/Login.png) | ![Environment](docs/screenshots/Environment.png) |
+
+| Protocol | Oncology |
+|---|---|
+| ![Protocol](docs/screenshots/Protocol.png) | ![Oncology](docs/screenshots/Oncology.png) |
 
 ---
 
 ## What it does
 
-The app simulates a **TheraMeDx1 Sampler™** — a microfluidic lab-on-chip device that tests 20 cancer drugs on a patient's cell sample simultaneously, ranking them by efficacy using computer vision.
-
-### Three panels:
+The app simulates a microfluidic lab-on-chip device that tests 20 cancer drugs on a patient's cell sample simultaneously, ranking them by efficacy using computer vision.
 
 **1. Environment Monitor** — real-time sensor dashboard polling 6 incubation sensors every second (temperature, humidity, CO₂, O₂, pressure, pH). Alarms trigger if values drift outside safe ranges. Sensor targets are adjustable. All readings are CSV-logged.
 
@@ -96,14 +110,6 @@ sequenceDiagram
 | Vision backend | C++17, OpenCV 4 — SimpleBlobDetector |
 | Deployment | Docker → Railway cloud |
 | CI/CD | GitHub Actions → .dmg + .exe releases |
-
----
-
-Built by **Mattéo Meister** · [meister.matteo@outlook.com](mailto:meister.matteo@outlook.com) · [GitHub](https://github.com/matteomeister-engineer)
-
----
-
-Built by **Mattéo Meister** · [meister.matteo@outlook.com](mailto:meister.matteo@outlook.com) · [GitHub](https://github.com/matteomeister-engineer)
 
 ---
 
