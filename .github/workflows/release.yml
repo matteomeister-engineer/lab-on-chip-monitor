@@ -24,6 +24,10 @@ jobs:
         working-directory: frontend
         run: flutter pub get
 
+      - name: Create macOS project files
+        working-directory: frontend
+        run: flutter create --platforms=macos . 2>/dev/null || true
+
       - name: Inject version from tag
         working-directory: frontend
         run: |
@@ -34,7 +38,7 @@ jobs:
 
       - name: Build macOS
         working-directory: frontend
-        run: flutter build macos --release --no-tree-shake-icons
+        run: flutter build macos --release
 
       - name: Install create-dmg
         run: brew install create-dmg
