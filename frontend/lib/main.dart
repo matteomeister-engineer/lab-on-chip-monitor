@@ -1442,7 +1442,7 @@ class RunProtocolPanel extends StatelessWidget {
             Text(patient['diagnosis'] ?? '',
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
                     color: Color(0xFF1A1A2E))),
-            const Text('TheraMeDx1 Sampler™ — Run Protocol',
+            const Text('Lab-on-Chip Monitor — Run Protocol',
                 style: TextStyle(fontSize: 11, color: Colors.black38)),
           ]),
           const Spacer(),
@@ -1741,7 +1741,7 @@ class RunProtocolPanel extends StatelessWidget {
       const Padding(
         padding: EdgeInsets.symmetric(horizontal: 40),
         child: Text(
-          'Start the TheraMeDx1 Sampler™ protocol for this patient sample.\n'
+          'Start the Lab-on-Chip Monitor protocol for this patient sample.\n'
           'Ensure chip is loaded and all environment sensors are nominal.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 12, color: Colors.black38, height: 1.6),
@@ -3093,7 +3093,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
       final pdf = pw.Document(
         title: 'Protocol Run Report — ${patient['id']}',
         author: technician,
-        creator: 'TheraMeDx1 Sampler',
+        creator: 'Lab-on-Chip Monitor',
       );
 
       // ── Fonts ──
@@ -3133,7 +3133,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
                 pw.Text('Protocol Run Report',
                     style: ts(16, font: ttBold, color: PdfColors.white)),
                 pw.SizedBox(height: 3),
-                pw.Text('TheraMeDx1 Sampler\u2122  \u2014  IVD Device',
+                pw.Text('Lab-on-Chip Monitor  —  IVD Device',
                     style: ts(9, color: PdfColor.fromInt(0x88FFFFFF))),
               ]),
               pw.Container(
@@ -3483,7 +3483,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
                   Text('Protocol Run Report',
                       style: TextStyle(fontSize: 15,
                           fontWeight: FontWeight.w800, color: Colors.white)),
-                  Text('TheraMeDx1 Sampler™  —  IVD Device',
+                  Text('Lab-on-Chip Monitor  —  IVD Device',
                       style: TextStyle(fontSize: 10, color: Colors.white38)),
                 ]),
               ),
