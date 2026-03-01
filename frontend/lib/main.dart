@@ -2092,7 +2092,7 @@ class _OncologyPanelState extends State<OncologyPanel> {
   bool _loading = false, _connected = false;
   String _status = 'Idle';
   int? _selectedWell;
-  final String _url = 'http://localhost:8081/api/analyze';
+  final String _url = 'https://therame-simulator-production-8370.up.railway.app/api/analyze';
 
   @override
   void initState() { super.initState(); if (widget.unlocked) _analyze(); }
@@ -2107,7 +2107,7 @@ class _OncologyPanelState extends State<OncologyPanel> {
   Future<void> _analyze() async {
     setState(() { _loading = true; _status = 'Analysing...'; });
     try {
-      final r = await http.get(Uri.parse(_url)).timeout(const Duration(seconds: 30));
+      final r = await http.get(Uri.parse(_url)).timeout(const Duration(seconds: 60));
       if (r.statusCode == 200) {
         final d = json.decode(r.body);
         setState(() {
