@@ -2161,11 +2161,10 @@ class _OncologyPanelState extends State<OncologyPanel> {
           onTap: _loading ? () {} : _analyze,
         )),
         const SizedBox(width: 12),
-        Expanded(child: Align(alignment: Alignment.centerRight,
+        Align(alignment: Alignment.centerRight,
             child: statusBadge(_connected, _status,
                 onTap: _connected ? null
                     : () => Platform.isMacOS ? launchDocker(context, 'cell-analyzer', 8081) : _analyze())),
-        ]),
       ]),
     ]),
   );
