@@ -2120,8 +2120,8 @@ class _OncologyPanelState extends State<OncologyPanel> {
           _selectedWell ??= _ranked.isNotEmpty ? _ranked.first.wellIndex : 0;
         });
       }
-    } catch (_) {
-      setState(() { _connected = false; _status = 'Disconnected'; _loading = false; });
+    } catch (e) {
+      setState(() { _connected = false; _status = 'Error: $e'; _loading = false; });
     }
   }
 
