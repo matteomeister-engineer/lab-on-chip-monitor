@@ -28,3 +28,7 @@ logs/
 .vscode/
 .idea/
 *.iml
+backend/.idea/
+frontend/.idea/
+frontend/android/.gradle/
+.DS_Store
