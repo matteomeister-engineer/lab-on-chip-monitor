@@ -12,7 +12,6 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 class _TrustAllCerts extends HttpOverrides {
   @override
@@ -110,9 +109,7 @@ class _LoginScreenState extends State<LoginScreen>
       vsync: this,
       duration: const Duration(seconds: 20),
     )..repeat();
-    PackageInfo.fromPlatform().then((info) {
-      setState(() => _version = 'v\${info.version}');
-    });
+    setState(() => _version = 'v1.2.7');
   }
 
   @override
@@ -138,8 +135,8 @@ class _LoginScreenState extends State<LoginScreen>
       backgroundColor: const Color(0xFFD3D6FE),
       body: Stack(children: [
         Center(
-        child: SizedBox(width: 380,
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          child: SizedBox(width: 380,
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
 
             // Logo area — slowly rotating
             RotationTransition(
@@ -222,6 +219,7 @@ class _LoginScreenState extends State<LoginScreen>
               ]),
             ),
           ]),
+          ),
         ),
       ),
       // Version number at bottom
@@ -417,7 +415,7 @@ class _MainDashboardState extends State<MainDashboard> {
         icon:Icons.thermostat, durationSeconds:600),
     ProtocolStep(id:'imaging',      title:'Fluorescence Imaging',
         description:'Automated microscopy scan of all wells. Viability markers imaged per droplet.',
-        icon:Icons.microscope, durationSeconds:300),
+        icon:Icons.search, durationSeconds:300),
     ProtocolStep(id:'analysis',     title:'Data Analysis & Ranking',
         description:'ML model scores drug efficacy. Top combinations ranked and quality-controlled.',
         icon:Icons.bar_chart, durationSeconds:120),
