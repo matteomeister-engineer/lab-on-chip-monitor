@@ -109,18 +109,18 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
 
             // Logo area
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: const Color(0xFF170345).withOpacity(0.1),
-                shape: BoxShape.circle,
+            ClipOval(
+              child: Image.asset(
+                'assets/icon/icon.png',
+                width: 110,
+                height: 110,
+                fit: BoxFit.cover,
               ),
-              child: Image.asset('assets/icon/icon.png', width: 80, height: 80),
             ),
             const SizedBox(height: 20),
             const Text('Lab-on-Chip Monitor',
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800,
-                    color: Color(0xFF170345))),
+                    color: const Color(0xFF170345))),
             const Text('Diagnostic Platform',
                 style: TextStyle(fontSize: 13, color: Color(0xFF170345))),
 
@@ -1291,7 +1291,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
               Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF170345),
+              backgroundColor: const Color(0xFF1A3A6E),
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
