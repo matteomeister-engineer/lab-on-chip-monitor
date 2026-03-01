@@ -3,7 +3,15 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:convert' show json, base64Decode, LineSplitter;
-import 'dart:io' show Directory, File, Process, Platform, SystemEncoding;
+import 'dart:io' show Directory, File, Process, Platform, SystemEncoding, HttpClient, HttpOverrides, X509Certificate;
+
+class _TrustAllCerts extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+  }
+}
 import 'package:http/http.dart' as http;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:window_manager/window_manager.dart';
@@ -13,6 +21,7 @@ import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
 
 void main() async {
+  HttpOverrides.global = _TrustAllCerts();
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
   await windowManager.setSize(const Size(1460, 870));
@@ -336,7 +345,7 @@ class _MainDashboardState extends State<MainDashboard> {
   Timer? _revealTimer;
   final List<String> _auditLog = [];
 
-  static const String _backendUrl = 'http://localhost:8080';
+  static const String _backendUrl = 'https://therame-simulator-production.up.railway.app';
 
   // ── Targets (survive tab switches) ──────────────────────────────────────
   final Map<String, double> targets = {
@@ -880,7 +889,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
     'o2': [], 'pressure': [], 'ph': [],
   };
 
-  final String _url = 'http://localhost:8080/api/environment';
+  final String _url = 'https://therame-simulator-production.up.railway.app/api/environment';
 
   @override
   void initState() { super.initState(); _start(); }
