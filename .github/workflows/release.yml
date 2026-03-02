@@ -46,14 +46,15 @@ jobs:
       - name: Package as DMG
         working-directory: frontend
         run: |
-          APP_NAME=$(ls build/macos/Build/Products/Release/*.app | head -1 | xargs basename)
+          APP_PATH=$(find build/macos/Build/Products/Release -name '*.app' -maxdepth 1 | head -1)
+          echo "Found app: $APP_PATH"
           create-dmg \
             --volname "Lab-on-Chip Monitor" \
             --window-size 600 400 \
             --icon-size 128 \
             --app-drop-link 450 200 \
             "Lab-on-Chip-Monitor-macOS.dmg" \
-            "build/macos/Build/Products/Release/$APP_NAME"
+            "$APP_PATH"
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
