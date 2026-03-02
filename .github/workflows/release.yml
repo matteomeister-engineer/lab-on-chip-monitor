@@ -8,6 +8,7 @@ on:
 jobs:
   build-macos:
     runs-on: macos-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -48,14 +49,17 @@ jobs:
         run: |
           APP_PATH=$(find build/macos/Build/Products/Release -name '*.app' -maxdepth 1 | head -1)
           echo "Found app: $APP_PATH"
+
+          APP_NAME=$(basename "$APP_PATH")
+          echo "App name: $APP_NAME"
+
           create-dmg \
             --volname "Lab-on-Chip Monitor" \
             --window-size 660 400 \
-            --background-color "#F5F5F7" \
             --icon-size 120 \
-            --icon "Lab-on-Chip Monitor.app" 165 185 \
+            --icon "$APP_NAME" 165 185 \
             --app-drop-link 495 185 \
-            --hide-extension "Lab-on-Chip Monitor.app" \
+            --hide-extension "$APP_NAME" \
             "Lab-on-Chip-Monitor-macOS.dmg" \
             "$APP_PATH"
 
@@ -67,6 +71,7 @@ jobs:
 
   build-windows:
     runs-on: windows-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -110,6 +115,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
       - name: Download macOS artifact
         uses: actions/download-artifact@v4
