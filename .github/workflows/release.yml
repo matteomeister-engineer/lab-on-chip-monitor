@@ -50,9 +50,12 @@ jobs:
           echo "Found app: $APP_PATH"
           create-dmg \
             --volname "Lab-on-Chip Monitor" \
-            --window-size 600 400 \
-            --icon-size 128 \
-            --app-drop-link 450 200 \
+            --window-size 660 400 \
+            --background-color "#F5F5F7" \
+            --icon-size 120 \
+            --icon "Lab-on-Chip Monitor.app" 165 185 \
+            --app-drop-link 495 185 \
+            --hide-extension "Lab-on-Chip Monitor.app" \
             "Lab-on-Chip-Monitor-macOS.dmg" \
             "$APP_PATH"
 
