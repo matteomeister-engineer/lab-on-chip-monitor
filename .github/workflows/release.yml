@@ -60,6 +60,7 @@ jobs:
             --icon "Lab-on-Chip Monitor.app" 165 185 \
             --app-drop-link 495 185 \
             --hide-extension "Lab-on-Chip Monitor.app" \
+            --background "macos/dmg-background.png" \  # ← ADD THIS LINE
             "Lab-on-Chip-Monitor-macOS.dmg" \
             "$APP_PATH"
 
