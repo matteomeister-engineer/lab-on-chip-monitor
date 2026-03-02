@@ -49,25 +49,21 @@ jobs:
         run: |
           APP_PATH=$(find build/macos/Build/Products/Release -name '*.app' -maxdepth 1 | head -1)
           echo "Found app: $APP_PATH"
-
-          APP_NAME=$(basename "$APP_PATH")
-          echo "App name: $APP_NAME"
-
           create-dmg \
             --volname "Lab-on-Chip Monitor" \
             --window-size 660 400 \
             --icon-size 120 \
-            --icon "$APP_NAME" 165 185 \
+            --icon "Lab-on-Chip Monitor.app" 165 185 \
             --app-drop-link 495 185 \
-            --hide-extension "$APP_NAME" \
+            --hide-extension "Lab-on-Chip Monitor.app" \
             "Lab-on-Chip-Monitor-macOS.dmg" \
             "$APP_PATH"
 
-      - name: Upload macOS artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-dmg
-          path: frontend/Lab-on-Chip-Monitor-macOS.dmg
+            - name: Upload macOS artifact
+              uses: actions/upload-artifact@v4
+              with:
+                name: macos-dmg
+                path: frontend/Lab-on-Chip-Monitor-macOS.dmg
 
   build-windows:
     runs-on: windows-latest
