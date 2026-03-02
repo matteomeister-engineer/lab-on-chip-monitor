@@ -48,6 +48,10 @@ jobs:
         working-directory: frontend
         run: |
           APP_PATH=$(find build/macos/Build/Products/Release -name '*.app' -maxdepth 1 | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: No .app bundle found in build/macos/Build/Products/Release"
+            exit 1
+          fi
           echo "Found app: $APP_PATH"
           create-dmg \
             --volname "Lab-on-Chip Monitor" \
@@ -59,11 +63,11 @@ jobs:
             "Lab-on-Chip-Monitor-macOS.dmg" \
             "$APP_PATH"
 
-            - name: Upload macOS artifact
-              uses: actions/upload-artifact@v4
-              with:
-                name: macos-dmg
-                path: frontend/Lab-on-Chip-Monitor-macOS.dmg
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: frontend/Lab-on-Chip-Monitor-macOS.dmg
 
   build-windows:
     runs-on: windows-latest
@@ -148,7 +152,8 @@ jobs:
             Cloud backends may take **10–20 seconds to wake up**. If you see "Disconnected", wait a moment — sensors will connect automatically.
 
             ### 🍎 macOS Gatekeeper
-            Right-click the app → **Open** → click **Open** in the dialog. You only need to do this once.
+            Right-click the app → **Open** → click **Open** in the dialog.  
+            If you see “App is damaged”, go to **System Settings → Privacy & Security → Allow Anyway**.
 
           files: |
             Lab-on-Chip-Monitor-macOS.dmg
