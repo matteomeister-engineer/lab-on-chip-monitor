@@ -8,7 +8,6 @@ on:
 jobs:
   build-macos:
     runs-on: macos-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -48,10 +47,6 @@ jobs:
         working-directory: frontend
         run: |
           APP_PATH=$(find build/macos/Build/Products/Release -name '*.app' -maxdepth 1 | head -1)
-          if [ -z "$APP_PATH" ]; then
-            echo "Error: No .app bundle found in build/macos/Build/Products/Release"
-            exit 1
-          fi
           echo "Found app: $APP_PATH"
           create-dmg \
             --volname "Lab-on-Chip Monitor" \
@@ -60,7 +55,6 @@ jobs:
             --icon "Lab-on-Chip Monitor.app" 165 185 \
             --app-drop-link 495 185 \
             --hide-extension "Lab-on-Chip Monitor.app" \
-            --background "macos/dmg-background.png" \
             "Lab-on-Chip-Monitor-macOS.dmg" \
             "$APP_PATH"
 
@@ -72,7 +66,6 @@ jobs:
 
   build-windows:
     runs-on: windows-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -111,12 +104,61 @@ jobs:
           name: windows-zip
           path: frontend/build/windows/x64/runner/Lab-on-Chip-Monitor-Windows.zip
 
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.0'
+          channel: 'stable'
+
+      - name: Enable Linux desktop
+        run: flutter config --enable-linux-desktop
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: flutter pub get
+
+      - name: Create Linux project files
+        working-directory: frontend
+        run: flutter create --platforms=linux . 2>/dev/null || true
+
+      - name: Inject version from tag
+        working-directory: frontend
+        run: |
+          TAG=${{ github.ref_name }}
+          sed -i "s/setState(() => _version = 'v[^']*');/setState(() => _version = '$TAG');/" lib/main.dart
+          echo "Version injected: $TAG"
+
+      - name: Build Linux
+        working-directory: frontend
+        run: flutter build linux --release
+
+      - name: Package as tar.gz
+        working-directory: frontend/build/linux/x64/release
+        run: tar -czf Lab-on-Chip-Monitor-Linux.tar.gz bundle/
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-tar
+          path: frontend/build/linux/x64/release/Lab-on-Chip-Monitor-Linux.tar.gz
+
   release:
-    needs: [build-macos, build-windows]
+    needs: [build-macos, build-windows, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
       - name: Download macOS artifact
         uses: actions/download-artifact@v4
@@ -127,6 +169,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: windows-zip
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-tar
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -143,6 +190,7 @@ jobs:
             |---|---|---|
             | **macOS** | `Lab-on-Chip-Monitor-macOS.dmg` | Open → drag to Applications → right-click → Open |
             | **Windows** | `Lab-on-Chip-Monitor-Windows.zip` | Extract → run `lab_on_chip_monitor.exe` |
+            | **Linux** | `Lab-on-Chip-Monitor-Linux.tar.gz` | Extract → run `bundle/lab_on_chip_monitor` |
 
             ### ✅ Requirements
             No setup needed. No Docker. No terminal. Connects automatically to cloud backends.
@@ -150,12 +198,12 @@ jobs:
             > **Login:** `admin` / `admin123`
 
             ### ⚠️ First launch
-            Cloud backends may take **10–20 seconds to wake up**. If you see "Disconnected", wait a moment — sensors will connect automatically.
+            Cloud backends may take **10–20 seconds to wake up**. If you see "Disconnected", wait a moment and they will connect automatically.
 
             ### 🍎 macOS Gatekeeper
-            Right-click the app → **Open** → click **Open** in the dialog.  
-            If you see “App is damaged”, go to **System Settings → Privacy & Security → Allow Anyway**.
+            Right-click the app → **Open** → click **Open** in the dialog. You only need to do this once.
 
           files: |
             Lab-on-Chip-Monitor-macOS.dmg
             Lab-on-Chip-Monitor-Windows.zip
+            Lab-on-Chip-Monitor-Linux.tar.gz
