@@ -116,7 +116,7 @@ jobs:
 
       - name: Install Flutter manually
         run: |
-          git clone https://github.com/flutter/flutter.git --depth 1 -b stable $HOME/flutter
+          git clone https://github.com/flutter/flutter.git --depth 1 -b 3.24.5 $HOME/flutter
           echo "$HOME/flutter/bin" >> $GITHUB_PATH
 
       - name: Enable Linux desktop
