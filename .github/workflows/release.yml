@@ -6,8 +6,8 @@ on:
       - 'v*'
 
 jobs:
-  build-macos:
-    runs-on: macos-latest
+  build-macos-arm64:
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
 
@@ -36,14 +36,14 @@ jobs:
           echo "Version injected: $TAG"
           grep "_version" lib/main.dart
 
-      - name: Build macOS
+      - name: Build macOS (Apple Silicon)
         working-directory: frontend
         run: flutter build macos --release
 
       - name: Install create-dmg
         run: brew install create-dmg
 
-      - name: Package as DMG
+      - name: Package as DMG (Apple Silicon)
         working-directory: frontend
         run: |
           APP_PATH=$(find build/macos/Build/Products/Release -name '*.app' -maxdepth 1 | head -1)
@@ -55,14 +55,72 @@ jobs:
             --icon "Lab-on-Chip Monitor.app" 165 185 \
             --app-drop-link 495 185 \
             --hide-extension "Lab-on-Chip Monitor.app" \
-            "Lab-on-Chip-Monitor-macOS.dmg" \
+            "Lab-on-Chip-Monitor-macOS-AppleSilicon.dmg" \
             "$APP_PATH"
 
-      - name: Upload macOS artifact
+      - name: Upload macOS Apple Silicon artifact
         uses: actions/upload-artifact@v4
         with:
-          name: macos-dmg
-          path: frontend/Lab-on-Chip-Monitor-macOS.dmg
+          name: macos-arm64-dmg
+          path: frontend/Lab-on-Chip-Monitor-macOS-AppleSilicon.dmg
+
+  build-macos-intel:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.0'
+          channel: 'stable'
+
+      - name: Enable macOS desktop
+        run: flutter config --enable-macos-desktop
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: flutter pub get
+
+      - name: Create macOS project files
+        working-directory: frontend
+        run: flutter create --platforms=macos . 2>/dev/null || true
+
+      - name: Inject version from tag
+        working-directory: frontend
+        run: |
+          TAG=${{ github.ref_name }}
+          sed -i '' "s/setState(() => _version = 'v[^']*');/setState(() => _version = '$TAG');/" lib/main.dart
+          echo "Version injected: $TAG"
+          grep "_version" lib/main.dart
+
+      - name: Build macOS (Intel)
+        working-directory: frontend
+        run: flutter build macos --release
+
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Package as DMG (Intel)
+        working-directory: frontend
+        run: |
+          APP_PATH=$(find build/macos/Build/Products/Release -name '*.app' -maxdepth 1 | head -1)
+          echo "Found app: $APP_PATH"
+          create-dmg \
+            --volname "Lab-on-Chip Monitor" \
+            --window-size 660 400 \
+            --icon-size 120 \
+            --icon "Lab-on-Chip Monitor.app" 165 185 \
+            --app-drop-link 495 185 \
+            --hide-extension "Lab-on-Chip Monitor.app" \
+            "Lab-on-Chip-Monitor-macOS-Intel.dmg" \
+            "$APP_PATH"
+
+      - name: Upload macOS Intel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-intel-dmg
+          path: frontend/Lab-on-Chip-Monitor-macOS-Intel.dmg
 
   build-windows:
     runs-on: windows-latest
@@ -197,15 +255,20 @@ jobs:
           path: frontend/build/linux/arm64/release/Lab-on-Chip-Monitor-Linux-arm64.tar.gz
 
   release:
-    needs: [build-macos, build-windows, build-linux-x64, build-linux-arm64]
+    needs: [build-macos-arm64, build-macos-intel, build-windows, build-linux-x64, build-linux-arm64]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Download macOS artifact
+      - name: Download macOS Apple Silicon artifact
         uses: actions/download-artifact@v4
         with:
-          name: macos-dmg
+          name: macos-arm64-dmg
+
+      - name: Download macOS Intel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-intel-dmg
 
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
@@ -235,7 +298,8 @@ jobs:
             ### ⬇️ Download
             | Platform | File | Instructions |
             |---|---|---|
-            | **macOS** | `Lab-on-Chip-Monitor-macOS.dmg` | Open → drag to Applications → right-click → Open |
+            | **macOS Apple Silicon** | `Lab-on-Chip-Monitor-macOS-AppleSilicon.dmg` | M1 / M2 / M3 / M4 — Open → drag to Applications → right-click → Open |
+            | **macOS Intel** | `Lab-on-Chip-Monitor-macOS-Intel.dmg` | Pre-2021 Intel Macs — Open → drag to Applications → right-click → Open |
             | **Windows** | `Lab-on-Chip-Monitor-Windows.zip` | Extract → run `lab_on_chip_monitor.exe` |
             | **Linux x64** | `Lab-on-Chip-Monitor-Linux-x64.tar.gz` | Extract → run `bundle/lab_on_chip_monitor` |
             | **Linux ARM64** | `Lab-on-Chip-Monitor-Linux-arm64.tar.gz` | For Apple Silicon UTM / ARM devices |
@@ -252,7 +316,8 @@ jobs:
             Right-click the app → **Open** → click **Open** in the dialog. You only need to do this once.
 
           files: |
-            Lab-on-Chip-Monitor-macOS.dmg
+            Lab-on-Chip-Monitor-macOS-AppleSilicon.dmg
+            Lab-on-Chip-Monitor-macOS-Intel.dmg
             Lab-on-Chip-Monitor-Windows.zip
             Lab-on-Chip-Monitor-Linux-x64.tar.gz
             Lab-on-Chip-Monitor-Linux-arm64.tar.gz
