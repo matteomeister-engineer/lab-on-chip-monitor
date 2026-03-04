@@ -12,6 +12,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:file_selector/file_selector.dart';
 
 class _TrustAllCerts extends HttpOverrides {
   @override
@@ -26,7 +27,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
   await windowManager.setSize(const Size(1460, 870));
-  await windowManager.setMinimumSize(const Size(900, 600));
+  await windowManager.setMinimumSize(const Size(1100, 680));
   await windowManager.center();
   await windowManager.setTitle('Lab-on-Chip Monitor');
   runApp(const MedicalMonitorApp());
@@ -1453,7 +1454,31 @@ class _MainDashboardState extends State<MainDashboard> {
   Widget _topBar() => Container(
     color: Colors.white,
     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-    child: Row(children: [
+    child: Stack(alignment: Alignment.center, children: [
+      // ── Tabs — absolutely centered in the full bar width ──
+      Center(
+        child: Container(
+          decoration: BoxDecoration(color: const Color(0xFFF3F3F3),
+              borderRadius: BorderRadius.circular(10)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            _tabBtn('🧪  Environment', 0),
+            _tabBtn('⚗️  Protocol',    1,
+                badge: _runStatus == ProtocolStatus.running ? 'LIVE'
+                     : _runStatus == ProtocolStatus.paused  ? 'PAUSED'
+                     : null,
+                badgeColor: _runStatus == ProtocolStatus.running
+                     ? const Color(0xFF388BFF)
+                     : const Color(0xFFFFA726)),
+            _tabBtn('🔬  Oncology',    2,
+                badge: !_oncologyUnlocked && _runStatus != ProtocolStatus.idle
+                     ? 'LOCKED' : null,
+                badgeColor: const Color(0xFF9E9E9E)),
+          ]),
+        ),
+      ),
+      // ── Left + Right content — equal Expanded sides force true centering ──
+      Row(children: [
+      Expanded(child: Row(children: [
 
       // Patient badge — ID always visible, name revealed on tap
       GestureDetector(
@@ -1554,46 +1579,27 @@ class _MainDashboardState extends State<MainDashboard> {
       ),
 
       const SizedBox(width: 12),
+      ])), // end left Expanded
 
-      // Tabs — centered in remaining space
-      Expanded(
-        child: Center(
-          child: Container(
-            decoration: BoxDecoration(color: const Color(0xFFF3F3F3),
-                borderRadius: BorderRadius.circular(10)),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              _tabBtn('🧪  Environment', 0),
-              _tabBtn('⚗️  Protocol',    1,
-                  badge: _runStatus == ProtocolStatus.running ? 'LIVE'
-                       : _runStatus == ProtocolStatus.paused  ? 'PAUSED'
-                       : null,
-                  badgeColor: _runStatus == ProtocolStatus.running
-                       ? const Color(0xFF388BFF)
-                       : const Color(0xFFFFA726)),
-              _tabBtn('🔬  Oncology',    2,
-                  badge: !_oncologyUnlocked && _runStatus != ProtocolStatus.idle
-                       ? 'LOCKED' : null,
-                  badgeColor: const Color(0xFF9E9E9E)),
-            ]),
-          ),
+      // Right side — same Expanded so both sides are equal width
+      Expanded(child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+        Text(widget.technician,
+            style: const TextStyle(fontSize: 12, color: Colors.black45)),
+        const SizedBox(width: 12),
+        TextButton.icon(
+          onPressed: () async {
+            await _stopLogger();
+            if (!mounted) return;
+            Navigator.pushReplacement(context,
+                MaterialPageRoute(builder: (_) => const LoginScreen()));
+          },
+          icon: const Icon(Icons.logout, size: 14),
+          label: const Text('Sign out', style: TextStyle(fontSize: 12)),
+          style: TextButton.styleFrom(foregroundColor: Colors.black38),
         ),
-      ),
-
-      Text(widget.technician,
-          style: const TextStyle(fontSize: 12, color: Colors.black45)),
-      const SizedBox(width: 12),
-      TextButton.icon(
-        onPressed: () async {
-          await _stopLogger();
-          if (!mounted) return;
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const LoginScreen()));
-        },
-        icon: const Icon(Icons.logout, size: 14),
-        label: const Text('Sign out', style: TextStyle(fontSize: 12)),
-        style: TextButton.styleFrom(foregroundColor: Colors.black38),
-      ),
-    ]),
+      ])), // end right Expanded
+    ]),   // end Row
+    ]),   // end Stack
   );
 
   void _showAuditLog(BuildContext context) {
@@ -1828,6 +1834,30 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
       ));
       return;
     }
+
+    // Build default filename and dir
+    final now = DateTime.now();
+    final defaultName =
+        'sensor_export_${widget.patient['id']}_'
+        '${now.year}${now.month.toString().padLeft(2,'0')}'
+        '${now.day.toString().padLeft(2,'0')}'
+        '_${now.hour.toString().padLeft(2,'0')}'
+        '${now.minute.toString().padLeft(2,'0')}.csv';
+    final defaultDir = await getDownloadsDirectory() ??
+                       await getApplicationDocumentsDirectory();
+
+    // Show save-location dialog
+    if (!mounted) return;
+    final result = await showDialog<String>(
+      context: context,
+      barrierColor: Colors.black45,
+      builder: (_) => _CsvSaveDialog(
+        defaultDir: defaultDir.path,
+        defaultName: defaultName,
+      ),
+    );
+    if (result == null) return; // user cancelled
+
     setState(() => _exporting = true);
     try {
       const keys = ['temperature','humidity','co2','o2','pressure','ph'];
@@ -1841,31 +1871,24 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
         }
         buf.writeln();
       }
-      final dir = await getDownloadsDirectory() ??
-                  await getApplicationDocumentsDirectory();
-      final now = DateTime.now();
-      final fname =
-          'sensor_export_${widget.patient['id']}_'
-          '${now.year}${now.month.toString().padLeft(2,'0')}'
-          '${now.day.toString().padLeft(2,'0')}'
-          '_${now.hour.toString().padLeft(2,'0')}'
-          '${now.minute.toString().padLeft(2,'0')}.csv';
-      final file = File('${dir.path}/$fname');
+      final file = File(result);
+      await file.parent.create(recursive: true);
       await file.writeAsString(buf.toString());
       setState(() => _exporting = false);
-      if (Platform.isMacOS) await Process.run('open', [dir.path]);
-      else if (Platform.isLinux) await Process.run('xdg-open', [dir.path]);
-      else if (Platform.isWindows) await Process.run('explorer', [dir.path]);
+      final dir = file.parent.path;
+      if (Platform.isMacOS) await Process.run('open', [dir]);
+      else if (Platform.isLinux) await Process.run('xdg-open', [dir]);
+      else if (Platform.isWindows) await Process.run('explorer', [dir]);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Exported ${_exportLog.length} rows → $fname'),
-          backgroundColor: const Color(0xFF26C6A0),
+          content: Text('Exported ${_exportLog.length} rows → ${file.path.split('/').last}'),
+          backgroundColor: const Color(0xFF388BFF),
         ));
       }
     } catch (e) {
       setState(() => _exporting = false);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Export failed: \$e'),
+        content: Text('Export failed: $e'),
         backgroundColor: const Color(0xFFEF5350),
       ));
     }
@@ -1920,14 +1943,14 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
                   _exporting
                     ? const SizedBox(width: 12, height: 12,
                         child: CircularProgressIndicator(strokeWidth: 2,
-                            color: Color(0xFF26C6A0)))
+                            color: Color(0xFF388BFF)))
                     : const Icon(Icons.download_outlined, size: 13,
-                        color: Color(0xFF26C6A0)),
+                        color: Color(0xFF388BFF)),
                   const SizedBox(width: 6),
                   Text(_exporting ? 'Exporting…' : 'Export CSV',
                       style: const TextStyle(fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF26C6A0))),
+                          color: Color(0xFF388BFF))),
                 ]),
               ),
             ),
@@ -4427,6 +4450,238 @@ class _OncologyReportDialogState extends State<OncologyReportDialog> {
             }),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── CSV Save Location Dialog ─────────────────────────────────────────────────
+// Uses native OS file-save dialog (Finder on macOS, Explorer on Windows)
+class _CsvSaveDialog extends StatefulWidget {
+  final String defaultDir;
+  final String defaultName;
+  const _CsvSaveDialog({required this.defaultDir, required this.defaultName});
+  @override
+  State<_CsvSaveDialog> createState() => _CsvSaveDialogState();
+}
+
+class _CsvSaveDialogState extends State<_CsvSaveDialog> {
+  late TextEditingController _nameCtrl;
+  String? _chosenDir;   // null = use defaultDir
+  bool _picking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Strip .csv suffix for display — we add it back on save
+    final rawName = widget.defaultName.endsWith('.csv')
+        ? widget.defaultName.substring(0, widget.defaultName.length - 4)
+        : widget.defaultName;
+    _nameCtrl = TextEditingController(text: rawName);
+  }
+
+  @override
+  void dispose() { _nameCtrl.dispose(); super.dispose(); }
+
+  String get _activeDir => _chosenDir ?? widget.defaultDir;
+
+  String get _fullPath {
+    var name = _nameCtrl.text.trim();
+    if (name.isEmpty) name = widget.defaultName;
+    if (!name.endsWith('.csv')) name += '.csv';
+    return '$_activeDir/$name';
+  }
+
+  Future<void> _pickFolder() async {
+    setState(() => _picking = true);
+    try {
+      final dir = await getDirectoryPath(
+        initialDirectory: _activeDir,
+        confirmButtonText: 'Save here',
+      );
+      if (dir != null) setState(() => _chosenDir = dir);
+    } finally {
+      setState(() => _picking = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dirDisplay = _activeDir.length > 42
+        ? '…${_activeDir.substring(_activeDir.length - 42)}'
+        : _activeDir;
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 480),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.18),
+              blurRadius: 32, offset: const Offset(0, 10))],
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+
+          // Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+            decoration: const BoxDecoration(
+              color: Color(0xFF1A1A2E),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF388BFF).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.download_outlined,
+                    color: Color(0xFF388BFF), size: 16),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Export Sensor Data',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
+                        color: Colors.white)),
+                Text('Choose where to save the CSV file',
+                    style: TextStyle(fontSize: 10, color: Colors.white38)),
+              ])),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: const Icon(Icons.close, color: Colors.white38, size: 16),
+              ),
+            ]),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+              // Save folder row
+              const Text('Save to folder', style: TextStyle(fontSize: 10,
+                  fontWeight: FontWeight.w700, color: Colors.black45,
+                  letterSpacing: 0.5)),
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8F9FF),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.black12),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.folder_outlined, size: 14, color: Colors.black38),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(dirDisplay,
+                          style: const TextStyle(fontSize: 11,
+                              fontFamily: 'monospace', color: Colors.black54),
+                          overflow: TextOverflow.ellipsis)),
+                    ]),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: _picking ? null : _pickFolder,
+                  icon: _picking
+                      ? const SizedBox(width: 12, height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 2,
+                              color: Colors.white))
+                      : const Icon(Icons.folder_open_outlined, size: 14),
+                  label: Text(_picking ? 'Opening…' : 'Browse…'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF170345),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 11),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    textStyle: const TextStyle(fontSize: 11,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ]),
+
+              const SizedBox(height: 16),
+
+              // Filename field
+              const Text('File name', style: TextStyle(fontSize: 10,
+                  fontWeight: FontWeight.w700, color: Colors.black45,
+                  letterSpacing: 0.5)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _nameCtrl,
+                style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.insert_drive_file_outlined,
+                      size: 16, color: Colors.black38),
+                  suffixText: '.csv',
+                  suffixStyle: const TextStyle(fontSize: 11, color: Colors.black38),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 11),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Colors.black12)),
+                  enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Colors.black12)),
+                  focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                          color: Color(0xFF388BFF), width: 1.5)),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              // Full path preview
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF388BFF).withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: const Color(0xFF388BFF).withOpacity(0.2)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.info_outline, size: 12,
+                      color: Color(0xFF388BFF)),
+                  const SizedBox(width: 7),
+                  Expanded(child: Text(_fullPath,
+                      style: const TextStyle(fontSize: 10,
+                          fontFamily: 'monospace', color: Colors.black54),
+                      overflow: TextOverflow.ellipsis)),
+                ]),
+              ),
+
+              const SizedBox(height: 20),
+              Row(children: [
+                Expanded(child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel',
+                      style: TextStyle(color: Colors.black38)),
+                )),
+                const SizedBox(width: 10),
+                Expanded(child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(context, _fullPath),
+                  icon: const Icon(Icons.download_outlined, size: 15),
+                  label: const Text('Save Here'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF388BFF),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                )),
+              ]),
+            ]),
+          ),
+        ]),
       ),
     );
   }
