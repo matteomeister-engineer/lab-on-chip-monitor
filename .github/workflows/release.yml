@@ -65,7 +65,7 @@ jobs:
           path: frontend/Lab-on-Chip-Monitor-macOS-AppleSilicon.dmg
 
   build-macos-intel:
-    runs-on: macos-13
+    runs-on: macos-12
     steps:
       - uses: actions/checkout@v4
 
