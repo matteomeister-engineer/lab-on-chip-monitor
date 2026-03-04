@@ -14,7 +14,6 @@ dependencies:
   printing: ^5.12.0
   path_provider: ^2.1.3   # sandbox-safe file paths on macOS
   package_info_plus: ^8.0.0
-  file_selector: ^1.0.3   # native OS folder/file picker dialog
 dev_dependencies:
   flutter_test:
     sdk: flutter

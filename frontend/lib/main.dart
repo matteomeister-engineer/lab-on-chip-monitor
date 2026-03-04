@@ -12,7 +12,6 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:file_selector/file_selector.dart';
 
 class _TrustAllCerts extends HttpOverrides {
   @override
@@ -4495,11 +4494,41 @@ class _CsvSaveDialogState extends State<_CsvSaveDialog> {
   Future<void> _pickFolder() async {
     setState(() => _picking = true);
     try {
-      final dir = await getDirectoryPath(
-        initialDirectory: _activeDir,
-        confirmButtonText: 'Save here',
-      );
-      if (dir != null) setState(() => _chosenDir = dir);
+      String? picked;
+      if (Platform.isMacOS) {
+        // Use osascript to show native Finder folder picker
+        final result = await Process.run('osascript', [
+          '-e',
+          'tell application "Finder" to set f to choose folder with prompt "Choose export folder:" default location POSIX file "$_activeDir"\nreturn POSIX path of f',
+        ]);
+        if (result.exitCode == 0) {
+          picked = (result.stdout as String).trim().replaceAll(RegExp(r'/$'), '');
+        }
+      } else if (Platform.isLinux) {
+        // Use zenity (available in all GTK desktops)
+        final result = await Process.run('zenity', [
+          '--file-selection', '--directory',
+          '--title=Choose export folder',
+          '--filename=$_activeDir/',
+        ]);
+        if (result.exitCode == 0) {
+          picked = (result.stdout as String).trim().replaceAll(RegExp(r'/$'), '');
+        }
+      } else if (Platform.isWindows) {
+        // PowerShell folder browser dialog
+        final result = await Process.run('powershell', [
+          '-command',
+          '[System.Reflection.Assembly]::LoadWithPartialName("System.windows.forms") | Out-Null; \$f = New-Object System.Windows.Forms.FolderBrowserDialog; \$f.SelectedPath = "$_activeDir"; if(\$f.ShowDialog() -eq "OK") { Write-Output \$f.SelectedPath }',
+        ], runInShell: true);
+        if (result.exitCode == 0 && (result.stdout as String).trim().isNotEmpty) {
+          picked = (result.stdout as String).trim();
+        }
+      }
+      if (picked != null && picked.isNotEmpty) {
+        setState(() => _chosenDir = picked);
+      }
+    } catch (_) {
+      // silently ignore if native dialog not available
     } finally {
       setState(() => _picking = false);
     }
