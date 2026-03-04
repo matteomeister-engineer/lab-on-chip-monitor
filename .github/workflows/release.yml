@@ -122,6 +122,14 @@ jobs:
       - name: Enable Linux desktop
         run: $HOME/flutter/bin/flutter config --enable-linux-desktop
 
+      - name: Clean generated plugin files
+        working-directory: frontend
+        run: |
+          rm -f pubspec.lock
+          rm -f .flutter-plugins
+          rm -f .flutter-plugins-dependencies
+          rm -rf linux/flutter/ephemeral
+
       - name: Install dependencies
         working-directory: frontend
         run: $HOME/flutter/bin/flutter pub get
@@ -167,6 +175,14 @@ jobs:
 
       - name: Enable Linux desktop
         run: $HOME/flutter/bin/flutter config --enable-linux-desktop
+
+      - name: Clean generated plugin files
+        working-directory: frontend
+        run: |
+          rm -f pubspec.lock
+          rm -f .flutter-plugins
+          rm -f .flutter-plugins-dependencies
+          rm -rf linux/flutter/ephemeral
 
       - name: Install dependencies
         working-directory: frontend
