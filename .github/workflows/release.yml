@@ -262,7 +262,7 @@ jobs:
 
       - name: Build web
         working-directory: frontend
-        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+        run: flutter build web --release --base-href "/lab-on-chip-monitor/" --web-renderer html
 
       - name: Upload web artifact
         uses: actions/upload-artifact@v4
@@ -283,6 +283,9 @@ jobs:
         with:
           name: web-build
           path: web-build/
+
+      - name: Add .nojekyll
+        run: touch web-build/.nojekyll
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
