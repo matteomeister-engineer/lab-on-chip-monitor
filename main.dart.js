@@ -104205,7 +104205,7 @@ r=r?A.aH:A.ci
 return B.yf(!0,A.dw,!1,s,!0,A.ay,s,B.LF(),b,s,s,s,s,s,2,B.rT(s,new B.cN(4,n,new B.aP(m,1,A.ac,-1)),s,A.VN,s,s,s,s,!0,new B.cN(4,l,new B.aP(r,1,A.ac,-1)),s,s,s,s,s,o,!0,s,s,s,s,new B.cN(4,B.a0(10),A.kl),s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,p,a,!0,s,s,s,s,s,s,s,s,e,s,s,s,s),A.ab,!0,s,!0,s,!1,s,A.dm,s,s,s,s,s,s,s,1,s,s,c,"\u2022",s,s,s,new B.avI(this),s,!1,s,!1,s,!0,s,A.cu,s,s,A.d6,A.cV,s,s,s,s,s,s,q,A.bD,s,A.eV,s,s,s,s)},
 af8(a,b,c,d){return this.SF(a,b,c,d,null)}}
 B.avP.prototype={
-$0(){return this.a.w="v1.5.1"},
+$0(){return this.a.w="v1.5.2"},
 $S:0}
 B.avJ.prototype={
 $1(a){return new B.p8(this.a,null)},
@@ -104628,7 +104628,7 @@ l=o.w
 n='{"temperature":'+B.f(l.h(0,"temperature"))+',"humidity":'+B.f(l.h(0,"humidity"))+',"co2":'+B.f(l.h(0,"co2"))+',"o2":'+B.f(l.h(0,"o2"))+',"pressure":'+B.f(l.h(0,"pressure"))+',"ph":'+B.f(l.h(0,"ph"))+"}"
 l=t.N
 s=6
-return B.T(B.aIc(B.h_("https://therame-simulator-production.up.railway.app/api/targets"),n,B.a7(["Content-Type","application/json"],l,l)),$async$EP)
+return B.T(B.aIc(B.h_("https://sensor-sfdc.onrender.com/api/targets"),n,B.a7(["Content-Type","application/json"],l,l)),$async$EP)
 case 6:q=1
 s=5
 break
@@ -104671,7 +104671,7 @@ this.aO()},
 BO(){var s=0,r=B.R(t.H),q=1,p,o=this,n,m,l,k,j
 var $async$BO=B.S(function(a,b){if(a===1){p=b
 s=q}while(true)switch(s){case 0:q=3
-m=B.h_("https://therame-simulator-production.up.railway.app/api/logger/start")
+m=B.h_("https://sensor-sfdc.onrender.com/api/logger/start")
 l=t.N
 l=B.a7(["Content-Type","application/json"],l,l)
 s=6
@@ -104695,7 +104695,7 @@ wI(){var s=0,r=B.R(t.H),q=1,p,o,n,m
 var $async$wI=B.S(function(a,b){if(a===1){p=b
 s=q}while(true)switch(s){case 0:q=3
 s=6
-return B.T(B.aIc(B.h_("https://therame-simulator-production.up.railway.app/api/logger/stop"),null,null),$async$wI)
+return B.T(B.aIc(B.h_("https://sensor-sfdc.onrender.com/api/logger/stop"),null,null),$async$wI)
 case 6:B.o3("[Logger] Stopped")
 q=1
 s=5
@@ -104968,7 +104968,7 @@ w4(){var s=0,r=B.R(t.H),q=1,p,o=this,n,m,l,k,j
 var $async$w4=B.S(function(a,b){if(a===1){p=b
 s=q}while(true)switch(s){case 0:q=3
 s=6
-return B.T(B.aHY(B.h_("https://therame-simulator-production.up.railway.app/api/environment"),null),$async$w4)
+return B.T(B.aHY(B.h_("https://sensor-sfdc.onrender.com/api/environment"),null),$async$w4)
 case 6:n=b
 if(n.b===200){l=n
 m=t.a.a(A.d7.df(B.aQs(B.aPb(l.e)).df(l.w)))
@@ -105587,7 +105587,7 @@ s=p}while(true)switch(s){case 0:if(n.c==null){s=1
 break}n.a7(new B.ax3(n))
 p=4
 s=7
-return B.T(B.aHY(B.h_("https://therame-simulator-production-8370.up.railway.app/api/analyze"),null).NQ(A.Vl),$async$pR)
+return B.T(B.aHY(B.h_("https://cell-dsvm.onrender.com/api/analyze"),null).NQ(A.Vl),$async$pR)
 case 7:m=b
 if(n.c==null){s=1
 break}if(m.b===200){j=m
