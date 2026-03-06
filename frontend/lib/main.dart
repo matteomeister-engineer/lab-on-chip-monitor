@@ -2065,7 +2065,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
       context: context,
       barrierColor: Colors.black45,
       builder: (_) => _CsvSaveDialog(
-        defaultDir: defaultDir.path,
+        defaultDir: defaultDir?.path ?? '',
         defaultName: defaultName,
       ),
     );
