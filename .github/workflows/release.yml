@@ -6,8 +6,8 @@ on:
       - 'v*'
 
 jobs:
-  build-macos-arm64:
-    runs-on: macos-14
+  build-macos:
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -28,6 +28,13 @@ jobs:
         working-directory: frontend
         run: flutter create --platforms=macos . 2>/dev/null || true
 
+      - name: Create asset placeholders
+        working-directory: frontend
+        run: |
+          mkdir -p assets/icon
+          [ -f assets/icon/icon.png ]      || cp macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_256.png assets/icon/icon.png      2>/dev/null || touch assets/icon/icon.png
+          [ -f assets/icon/icon_dark.png ] || cp assets/icon/icon.png assets/icon/icon_dark.png
+
       - name: Inject version from tag
         working-directory: frontend
         run: |
@@ -36,14 +43,14 @@ jobs:
           echo "Version injected: $TAG"
           grep "_version" lib/main.dart
 
-      - name: Build macOS (Apple Silicon)
+      - name: Build macOS
         working-directory: frontend
         run: flutter build macos --release
 
       - name: Install create-dmg
         run: brew install create-dmg
 
-      - name: Package as DMG (Apple Silicon)
+      - name: Package as DMG
         working-directory: frontend
         run: |
           APP_PATH=$(find build/macos/Build/Products/Release -name '*.app' -maxdepth 1 | head -1)
@@ -58,7 +65,7 @@ jobs:
             "Lab-on-Chip-Monitor-macOS.dmg" \
             "$APP_PATH"
 
-      - name: Upload macOS Apple Silicon artifact
+      - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-dmg
@@ -78,6 +85,14 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: flutter pub get
+
+      - name: Create asset placeholders
+        working-directory: frontend
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path assets/icon | Out-Null
+          if (-not (Test-Path assets/icon/icon.png))      { New-Item -ItemType File assets/icon/icon.png }
+          if (-not (Test-Path assets/icon/icon_dark.png)) { Copy-Item assets/icon/icon.png assets/icon/icon_dark.png }
 
       - name: Inject version from tag
         working-directory: frontend
@@ -122,14 +137,6 @@ jobs:
       - name: Enable Linux desktop
         run: $HOME/flutter/bin/flutter config --enable-linux-desktop
 
-      - name: Clean generated plugin files
-        working-directory: frontend
-        run: |
-          rm -f pubspec.lock
-          rm -f .flutter-plugins
-          rm -f .flutter-plugins-dependencies
-          rm -rf linux/flutter/ephemeral
-
       - name: Install dependencies
         working-directory: frontend
         run: $HOME/flutter/bin/flutter pub get
@@ -137,6 +144,13 @@ jobs:
       - name: Create Linux project files
         working-directory: frontend
         run: $HOME/flutter/bin/flutter create --platforms=linux . 2>/dev/null || true
+
+      - name: Create asset placeholders
+        working-directory: frontend
+        run: |
+          mkdir -p assets/icon
+          [ -f assets/icon/icon.png ]      || touch assets/icon/icon.png
+          [ -f assets/icon/icon_dark.png ] || touch assets/icon/icon_dark.png
 
       - name: Inject version from tag
         working-directory: frontend
@@ -176,14 +190,6 @@ jobs:
       - name: Enable Linux desktop
         run: $HOME/flutter/bin/flutter config --enable-linux-desktop
 
-      - name: Clean generated plugin files
-        working-directory: frontend
-        run: |
-          rm -f pubspec.lock
-          rm -f .flutter-plugins
-          rm -f .flutter-plugins-dependencies
-          rm -rf linux/flutter/ephemeral
-
       - name: Install dependencies
         working-directory: frontend
         run: $HOME/flutter/bin/flutter pub get
@@ -191,6 +197,13 @@ jobs:
       - name: Create Linux project files
         working-directory: frontend
         run: $HOME/flutter/bin/flutter create --platforms=linux . 2>/dev/null || true
+
+      - name: Create asset placeholders
+        working-directory: frontend
+        run: |
+          mkdir -p assets/icon
+          [ -f assets/icon/icon.png ]      || touch assets/icon/icon.png
+          [ -f assets/icon/icon_dark.png ] || touch assets/icon/icon_dark.png
 
       - name: Inject version from tag
         working-directory: frontend
@@ -213,12 +226,12 @@ jobs:
           path: frontend/build/linux/arm64/release/Lab-on-Chip-Monitor-Linux-arm64.tar.gz
 
   release:
-    needs: [build-macos-arm64, build-windows, build-linux-x64, build-linux-arm64]
+    needs: [build-macos, build-windows, build-linux-x64, build-linux-arm64]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Download macOS Apple Silicon artifact
+      - name: Download macOS artifact
         uses: actions/download-artifact@v4
         with:
           name: macos-dmg
@@ -251,7 +264,7 @@ jobs:
             ### ⬇️ Download
             | Platform | File | Instructions |
             |---|---|---|
-            | **macOS** | `Lab-on-Chip-Monitor-macOS.dmg` | Apple Silicon (M1–M4) — Open → drag to Applications → right-click → Open |
+            | **macOS** | `Lab-on-Chip-Monitor-macOS.dmg` | Open → drag to Applications → right-click → Open |
             | **Windows** | `Lab-on-Chip-Monitor-Windows.zip` | Extract → run `lab_on_chip_monitor.exe` |
             | **Linux x64** | `Lab-on-Chip-Monitor-Linux-x64.tar.gz` | Extract → run `bundle/lab_on_chip_monitor` |
             | **Linux ARM64** | `Lab-on-Chip-Monitor-Linux-arm64.tar.gz` | For Apple Silicon UTM / ARM devices |
