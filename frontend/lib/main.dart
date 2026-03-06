@@ -2,9 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'dart:math' as math;
 import 'dart:convert' show json, base64Decode, LineSplitter;
-import 'dart:io' show Directory, File, Process, Platform, SystemEncoding;
+import 'dart:io';
+
 import 'package:http/http.dart' as http;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:window_manager/window_manager.dart';
@@ -12,12 +12,22 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class _TrustAllCerts extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+  }
+}
 
 void main() async {
+  HttpOverrides.global = _TrustAllCerts();
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
   await windowManager.setSize(const Size(1460, 870));
-  await windowManager.setMinimumSize(const Size(900, 600));
+  await windowManager.setMinimumSize(const Size(1100, 680));
   await windowManager.center();
   await windowManager.setTitle('Lab-on-Chip Monitor');
   runApp(const MedicalMonitorApp());
@@ -55,19 +65,179 @@ const _patients = [
   },
 ];
 
+// ── Theme system ─────────────────────────────────────────────────────────────
+
+class AppColors {
+  // Shared accents (same in both modes)
+  static const blue   = Color(0xFF388BFF);
+  static const mint   = Color(0xFF26C6A0);
+  static const purple = Color(0xFF170345);
+  static const amber  = Color(0xFFFFA726);
+  static const red    = Color(0xFFEF5350);
+  static const green  = Color(0xFF1B8A5A);
+  static const navy   = Color(0xFF1A1A2E);
+
+  // Light mode surfaces
+  static const lightBg         = Color(0xFFF3F3F3);
+  static const loginBg         = Color(0xFFD5D6FF);
+  static const lightCard       = Color(0xFFFFFFFF);
+  static const lightSurface    = Color(0xFFF3F3F3);
+  static const lightBorder     = Color(0x1A000000);
+  static const lightText       = Color(0xFF1A1A2E);
+  static const lightSubtext    = Color(0xFF666666);
+  static const lightMuted      = Color(0xFF9E9E9E);
+
+  // Dark mode surfaces
+  static const darkBg          = Color(0xFF101022);
+  static const darkCard        = Color(0xFF1E1E35);
+  static const darkSurface     = Color(0xFF161628);
+  static const darkElevated    = Color(0xFF252540);
+  static const darkBorder      = Color(0x28FFFFFF);
+  static const darkText        = Color(0xFFEEEEFF);
+  static const darkSubtext     = Color(0xFF8888AA);
+  static const darkMuted       = Color(0xFF555577);
+}
+
+class AppTheme {
+  final bool dark;
+  const AppTheme(this.dark);
+
+  Color get bg          => dark ? AppColors.darkBg       : AppColors.lightBg;
+  Color get card        => dark ? AppColors.darkCard      : AppColors.lightCard;
+  Color get surface     => dark ? AppColors.darkSurface   : AppColors.lightSurface;
+  Color get elevated    => dark ? AppColors.darkElevated  : const Color(0xFFE8EEFF);
+  Color get border      => dark ? AppColors.darkBorder    : AppColors.lightBorder;
+  Color get text        => dark ? AppColors.darkText      : AppColors.lightText;
+  Color get subtext     => dark ? AppColors.darkSubtext   : AppColors.lightSubtext;
+  Color get muted       => dark ? AppColors.darkMuted     : AppColors.lightMuted;
+  Color get topBar      => dark ? AppColors.darkCard      : AppColors.lightCard;
+  Color get inputFill   => dark ? AppColors.darkElevated  : AppColors.lightSurface;
+  Color get sensorCard  => dark ? AppColors.darkCard      : AppColors.lightCard;
+}
+
+class ThemeNotifier extends ChangeNotifier {
+  bool _dark = false;
+  bool get dark => _dark;
+  AppTheme get theme => AppTheme(_dark);
+
+  ThemeNotifier() { _load(); }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    _dark = prefs.getBool('dark_mode') ?? false;
+    notifyListeners();
+  }
+
+  Future<void> toggle() async {
+    _dark = !_dark;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('dark_mode', _dark);
+    notifyListeners();
+  }
+}
+
+// ── Session history ───────────────────────────────────────────────────────────
+
+class PatientSession {
+  final String patientId;
+  final String diagnosis;
+  final String bestDrug;
+  final String bestCategory;
+  final double bestEfficacy;
+  final int wellCount;
+  final DateTime timestamp;
+
+  PatientSession({
+    required this.patientId,
+    required this.diagnosis,
+    required this.bestDrug,
+    required this.bestCategory,
+    required this.bestEfficacy,
+    required this.wellCount,
+    required this.timestamp,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'patientId':    patientId,
+    'diagnosis':    diagnosis,
+    'bestDrug':     bestDrug,
+    'bestCategory': bestCategory,
+    'bestEfficacy': bestEfficacy,
+    'wellCount':    wellCount,
+    'timestamp':    timestamp.toIso8601String(),
+  };
+
+  factory PatientSession.fromJson(Map<String, dynamic> j) => PatientSession(
+    patientId:    j['patientId'],
+    diagnosis:    j['diagnosis'],
+    bestDrug:     j['bestDrug'],
+    bestCategory: j['bestCategory'],
+    bestEfficacy: (j['bestEfficacy'] as num).toDouble(),
+    wellCount:    j['wellCount'],
+    timestamp:    DateTime.parse(j['timestamp']),
+  );
+}
+
+class SessionHistory {
+  static const _key = 'session_history';
+
+  static Future<List<PatientSession>> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_key);
+    if (raw == null) return [];
+    final list = json.decode(raw) as List;
+    return list.map((e) => PatientSession.fromJson(e)).toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+  }
+
+  static Future<void> save(PatientSession session) async {
+    final sessions = await load();
+    sessions.insert(0, session);
+    // Keep last 100 sessions
+    final trimmed = sessions.take(100).toList();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_key, json.encode(trimmed.map((s) => s.toJson()).toList()));
+  }
+
+  static Future<void> clear() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_key);
+  }
+}
+
 // ── App root ──────────────────────────────────────────────────────────────────
 
-class MedicalMonitorApp extends StatelessWidget {
+final themeNotifier = ThemeNotifier();
+
+class MedicalMonitorApp extends StatefulWidget {
   const MedicalMonitorApp({super.key});
   @override
+  State<MedicalMonitorApp> createState() => _MedicalMonitorAppState();
+}
+
+class _MedicalMonitorAppState extends State<MedicalMonitorApp> {
+  @override
+  void initState() {
+    super.initState();
+    themeNotifier.addListener(() { if (mounted) setState(() {}); });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final dark = themeNotifier.dark;
     return MaterialApp(
       title: 'Lab-on-Chip Monitor',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        brightness: Brightness.light,
-        scaffoldBackgroundColor: const Color(0xFFF3F3F3),
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1A3A6E)),
+        brightness: dark ? Brightness.dark : Brightness.light,
+        scaffoldBackgroundColor: dark ? AppColors.darkBg : const Color(0xFFF3F3F3),
+        colorScheme: dark
+            ? ColorScheme.dark(
+                primary: AppColors.blue,
+                surface: AppColors.darkCard,
+                background: AppColors.darkBg,
+              )
+            : ColorScheme.fromSeed(seedColor: const Color(0xFF1A3A6E)),
       ),
       home: const LoginScreen(),
     );
@@ -84,11 +254,30 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
   final _userCtrl = TextEditingController(text: 'admin');
   final _passCtrl = TextEditingController(text: 'admin123');
   bool _obscure = true;
   String? _error;
+  String _version = '';
+  late AnimationController _rotCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _rotCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 20),
+    )..repeat();
+    setState(() => _version = 'v1.5.0');
+  }
+
+  @override
+  void dispose() {
+    _rotCtrl.dispose();
+    super.dispose();
+  }
 
   void _login() {
     final u = _userCtrl.text.trim();
@@ -103,27 +292,31 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = themeNotifier.theme;
+    final titleCol  = t.dark ? AppColors.mint   : AppColors.purple;
+    final versionCol = t.dark ? AppColors.darkMuted : AppColors.purple;
     return Scaffold(
-      backgroundColor: const Color(0xFF3889FE),
-      body: Center(
-        child: SizedBox(width: 380,
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      backgroundColor: t.dark ? AppColors.darkBg : AppColors.loginBg,
+      body: Stack(children: [
+        Center(
+          child: SizedBox(width: 380,
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
 
-            // Logo area
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.biotech, size: 48, color: Colors.white),
+            // Logo area — slowly rotating
+            RotationTransition(
+              turns: _rotCtrl,
+              child: Image.asset(themeNotifier.dark ? 'assets/icon/icon_dark.png' : 'assets/icon/icon.png', width: 110, height: 110, fit: BoxFit.cover),
             ),
             const SizedBox(height: 20),
-            const Text('Lab-on-Chip Monitor',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800,
-                    color: Colors.white)),
-            const Text('Diagnostic Platform',
-                style: TextStyle(fontSize: 13, color: Colors.white54)),
+            Text('Lab-on-Chip Monitor',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: titleCol)),
+            Text('Diagnostic Platform',
+                style: TextStyle(fontSize: 13, color: titleCol)),
+            const SizedBox(height: 6),
+            Text('by Mattéo Meister',
+                style: TextStyle(fontSize: 10,
+                    color: t.dark ? AppColors.darkSubtext : Colors.white,
+                    fontWeight: FontWeight.w400)),
 
             const SizedBox(height: 40),
 
@@ -131,26 +324,25 @@ class _LoginScreenState extends State<LoginScreen> {
             Container(
               padding: const EdgeInsets.all(28),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: t.card,
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(t.dark ? 0.4 : 0.2),
                     blurRadius: 30, offset: const Offset(0, 10))],
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Technician Login',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
-                        color: Color(0xFF1A1A2E))),
+                Text('Technician Login',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: t.text)),
                 const SizedBox(height: 6),
-                const Text('Authorised personnel only',
-                    style: TextStyle(fontSize: 12, color: Colors.black38)),
+                Text('Authorised personnel only',
+                    style: TextStyle(fontSize: 12, color: t.muted)),
                 const SizedBox(height: 24),
 
-                _field('Username', _userCtrl, false),
+                _field('Username', _userCtrl, false, t),
                 const SizedBox(height: 14),
-                _field('Password', _passCtrl, _obscure,
+                _field('Password', _passCtrl, _obscure, t,
                     suffix: IconButton(
                       icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility,
-                          size: 18, color: Colors.black38),
+                          size: 18, color: t.muted),
                       onPressed: () => setState(() => _obscure = !_obscure),
                     )),
 
@@ -159,14 +351,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.08),
+                      color: AppColors.red.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.withOpacity(0.3)),
+                      border: Border.all(color: AppColors.red.withOpacity(0.3)),
                     ),
                     child: Row(children: [
-                      const Icon(Icons.error_outline, size: 16, color: Colors.red),
+                      const Icon(Icons.error_outline, size: 16, color: AppColors.red),
                       const SizedBox(width: 8),
-                      Text(_error!, style: const TextStyle(fontSize: 12, color: Colors.red)),
+                      Text(_error!, style: const TextStyle(fontSize: 12, color: AppColors.red)),
                     ]),
                   ),
                 ],
@@ -176,7 +368,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: ElevatedButton(
                     onPressed: _login,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1A3A6E),
+                      backgroundColor: AppColors.purple,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -186,33 +378,65 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
 
                 const SizedBox(height: 16),
-                const Center(child: Text('Pre-filled: admin / admin123',
-                    style: TextStyle(fontSize: 11, color: Colors.black26))),
-              ]),
+                Center(child: Text('Pre-filled: admin / admin123',
+                    style: TextStyle(fontSize: 11, color: t.muted))),
+              ]),       // Column children
+            ),             // Container (login card)
+            ]),            // Column children (outer)
+          ),               // SizedBox
+        ),                 // Center
+        // Version + dark mode toggle at bottom
+        Positioned(
+          bottom: 16, left: 0, right: 0,
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text(_version, style: TextStyle(fontSize: 10, color: versionCol)),
+            const SizedBox(width: 16),
+            GestureDetector(
+              onTap: () => setState(() { themeNotifier.toggle(); }),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: t.dark ? AppColors.darkElevated : Colors.white.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: t.border),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(t.dark ? Icons.dark_mode : Icons.light_mode,
+                      size: 13, color: t.dark ? AppColors.amber : AppColors.purple),
+                  const SizedBox(width: 5),
+                  Text(t.dark ? 'Dark' : 'Light',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
+                          color: t.dark ? AppColors.amber : AppColors.purple)),
+                ]),
+              ),
             ),
           ]),
         ),
-      ),
-    );
+      ]),                  // Stack children
+    );                     // Scaffold
   }
 
-  Widget _field(String label, TextEditingController ctrl, bool obscure, {Widget? suffix}) =>
+  Widget _field(String label, TextEditingController ctrl, bool obscure, AppTheme t, {
+    Widget? suffix}) =>
     TextField(
       controller: ctrl,
       obscureText: obscure,
       onSubmitted: (_) => _login(),
-      style: const TextStyle(fontSize: 14),
+      style: TextStyle(fontSize: 14, color: t.text),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(fontSize: 13, color: Colors.black45),
+        labelStyle: TextStyle(fontSize: 13, color: t.muted),
         suffixIcon: suffix,
+        filled: true,
+        fillColor: t.inputFill,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Colors.black12)),
+            borderSide: BorderSide(color: t.border)),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Colors.black12)),
+            borderSide: BorderSide(color: t.border)),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Color(0xFF1A3A6E), width: 1.5)),
+            borderSide: const BorderSide(color: AppColors.purple, width: 1.5)),
       ),
     );
 }
@@ -221,84 +445,906 @@ class _LoginScreenState extends State<LoginScreen> {
 //  PATIENT SELECTION SCREEN
 // ══════════════════════════════════════════
 
-class PatientSelectScreen extends StatelessWidget {
+// ── Mutable patient list (starts with demo patients) ─────────────────────────
+final List<Map<String, String>> _runtimePatients = List.from(_patients);
+
+// ── Simulated HL7 FHIR R4 database ───────────────────────────────────────────
+const _fhirDatabase = {
+  'PAT2024001': {
+    'id': 'PAT-2024-001', 'name': 'Marie Dupont', 'pseudo': 'Marie D.',
+    'age': '58', 'diagnosis': 'Breast cancer — Stage II',
+    'fhir_id': 'f001', 'dob': '1966-03-14', 'gender': 'female', 'mrn': 'MRN-7714-A',
+  },
+  'PAT2024002': {
+    'id': 'PAT-2024-002', 'name': 'Jean-Pierre Arno', 'pseudo': 'Jean-Pierre A.',
+    'age': '67', 'diagnosis': 'Colorectal cancer — Stage III',
+    'fhir_id': 'f002', 'dob': '1957-08-22', 'gender': 'male', 'mrn': 'MRN-8821-B',
+  },
+  'PAT2024003': {
+    'id': 'PAT-2024-003', 'name': 'Sophie Laurent', 'pseudo': 'Sophie L.',
+    'age': '44', 'diagnosis': 'Ovarian cancer — Stage II',
+    'fhir_id': 'f003', 'dob': '1980-11-05', 'gender': 'female', 'mrn': 'MRN-5530-C',
+  },
+  'PAT2024004': {
+    'id': 'PAT-2024-004', 'name': 'Lucas Bernard', 'pseudo': 'Lucas B.',
+    'age': '52', 'diagnosis': 'Lung cancer — Stage II',
+    'fhir_id': 'f004', 'dob': '1972-01-30', 'gender': 'male', 'mrn': 'MRN-6642-D',
+  },
+  'PAT2024005': {
+    'id': 'PAT-2024-005', 'name': 'Camille Rousseau', 'pseudo': 'Camille R.',
+    'age': '39', 'diagnosis': 'Melanoma — Stage III',
+    'fhir_id': 'f005', 'dob': '1985-06-18', 'gender': 'female', 'mrn': 'MRN-9901-E',
+  },
+};
+
+Future<Map<String, String>?> _fhirLookup(String barcode) async {
+  await Future.delayed(const Duration(milliseconds: 900));
+  final key = barcode.replaceAll('-', '').replaceAll(' ', '').toUpperCase();
+  return _fhirDatabase[key];
+}
+
+class PatientSelectScreen extends StatefulWidget {
   final String technician;
   const PatientSelectScreen({super.key, required this.technician});
+  @override
+  State<PatientSelectScreen> createState() => _PatientSelectScreenState();
+}
+
+class _PatientSelectScreenState extends State<PatientSelectScreen> {
+  final FocusNode _scanFocus = FocusNode();
+  final TextEditingController _scanCtrl = TextEditingController();
+  bool _scanning = false;
+  String? _scanError;
+  final StringBuffer _scanBuffer = StringBuffer();
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF3F3F3),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+  void dispose() {
+    _scanFocus.dispose();
+    _scanCtrl.dispose();
+    super.dispose();
+  }
 
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Select Patient',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800,
-                        color: Color(0xFF1A1A2E))),
-                Text('Logged in as $technician',
-                    style: const TextStyle(fontSize: 13, color: Colors.black45)),
-              ]),
-              TextButton.icon(
-                onPressed: () => Navigator.pushReplacement(context,
-                    MaterialPageRoute(builder: (_) => const LoginScreen())),
-                icon: const Icon(Icons.logout, size: 16),
-                label: const Text('Sign out'),
-                style: TextButton.styleFrom(foregroundColor: Colors.black45),
-              ),
-            ]),
+  void _onScannerInput(String val) {
+    _scanBuffer.clear();
+    _scanBuffer.write(val);
+  }
 
-            const SizedBox(height: 32),
+  void _onScannerSubmit(String val) {
+    final code = val.trim();
+    _scanCtrl.clear();
+    if (code.isNotEmpty) _doLookup(code);
+  }
 
-            ..._patients.map((p) => _patientCard(context, p, technician)),
-          ]),
-        ),
+  Future<void> _doLookup(String code) async {
+    setState(() { _scanning = true; _scanError = null; });
+    final result = await _fhirLookup(code);
+    if (!mounted) return;
+    if (result == null) {
+      setState(() { _scanning = false; _scanError = 'No patient found for: $code'; });
+      return;
+    }
+    setState(() => _scanning = false);
+    _showFhirPreview(result);
+  }
+
+  void _showFhirPreview(Map<String, String> patient) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (_) => _FhirPreviewDialog(
+        patient: patient,
+        onConfirm: () {
+          final alreadyExists = _runtimePatients.any((p) => p['id'] == patient['id']);
+          if (!alreadyExists) setState(() => _runtimePatients.add(patient));
+          Navigator.pop(context);
+          Navigator.pushReplacement(context,
+            MaterialPageRoute(builder: (_) => MainDashboard(
+              technician: widget.technician, patient: patient)));
+        },
       ),
     );
   }
 
-  Widget _patientCard(BuildContext context, Map<String, String> p, String tech) {
+  void _showAddManual() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (_) => _ManualBarcodeDialog(
+        onSubmit: (code) { Navigator.pop(context); _doLookup(code); },
+        onManualAdd: (patient) {
+          Navigator.pop(context);
+          // Show preview so user confirms before adding
+          _showFhirPreview(patient);
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = themeNotifier.theme;
+    return Scaffold(
+      backgroundColor: t.bg,
+      body: SafeArea(
+        child: Stack(children: [
+          Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Select Patient',
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: t.text)),
+                  Text('Logged in as ${widget.technician}',
+                      style: TextStyle(fontSize: 13, color: t.muted)),
+                ]),
+                Row(children: [
+                  GestureDetector(
+                    onTap: _showAddManual,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: themeNotifier.dark ? AppColors.mint.withOpacity(0.12) : const Color(0xFF170345).withOpacity(0.07),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: themeNotifier.dark ? AppColors.mint.withOpacity(0.4) : const Color(0xFF170345).withOpacity(0.2)),
+                      ),
+                      child: Row(children: [
+                        Icon(Icons.qr_code_scanner, size: 15, color: themeNotifier.dark ? AppColors.mint : const Color(0xFF170345)),
+                        const SizedBox(width: 7),
+                        Text('Add Patient', style: TextStyle(fontSize: 12,
+                            fontWeight: FontWeight.w600, color: themeNotifier.dark ? AppColors.mint : const Color(0xFF170345))),
+                      ]),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  TextButton.icon(
+                    onPressed: () => Navigator.pushReplacement(context,
+                        MaterialPageRoute(builder: (_) => const LoginScreen())),
+                    icon: const Icon(Icons.logout, size: 16),
+                    label: const Text('Sign out'),
+                    style: TextButton.styleFrom(foregroundColor: themeNotifier.dark ? AppColors.darkSubtext : Colors.black45),
+                  ),
+                ]),
+              ]),
+
+              const SizedBox(height: 16),
+
+              _ScannerHintBar(
+                scanning: _scanning,
+                error: _scanError,
+                onManualTap: _showAddManual,
+                onFocus: () => _scanFocus.requestFocus(),
+              ),
+
+              const SizedBox(height: 16),
+
+              Expanded(
+                child: ListView(
+                  children: _runtimePatients.map((p) => _patientCard(context, p)).toList(),
+                ),
+              ),
+            ]),
+          ),
+
+          // Hidden field capturing USB scanner input
+          Positioned(
+            left: -9999, top: -9999,
+            child: SizedBox(
+              width: 1, height: 1,
+              child: TextField(
+                focusNode: _scanFocus,
+                controller: _scanCtrl,
+                onChanged: _onScannerInput,
+                onSubmitted: _onScannerSubmit,
+              ),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _patientCard(BuildContext context, Map<String, String> p) {
+    final t   = themeNotifier.theme;
+    final isNew = !_patients.any((d) => d['id'] == p['id']);
     return GestureDetector(
       onTap: () => Navigator.pushReplacement(context,
           MaterialPageRoute(builder: (_) => MainDashboard(
-            technician: tech, patient: p))),
+            technician: widget.technician, patient: p))),
       child: Container(
         width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 16),
+        margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: t.card,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.black12),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
+          border: Border.all(color: isNew
+              ? AppColors.purple.withOpacity(0.3) : t.border),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(t.dark ? 0.15 : 0.04),
               blurRadius: 8, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
           Container(
             width: 48, height: 48,
             decoration: BoxDecoration(
-              color: const Color(0xFF1A3A6E).withOpacity(0.1),
+              color: AppColors.purple.withOpacity(themeNotifier.dark ? 0.25 : 0.08),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.person, color: Color(0xFF1A3A6E), size: 26),
+            child: Icon(Icons.person, color: themeNotifier.dark ? AppColors.mint : AppColors.purple, size: 26),
           ),
           const SizedBox(width: 16),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            // ID is always visible
-            Text(p['id']!, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
-                color: Color(0xFF1A1A2E), fontFamily: 'monospace')),
+            Row(children: [
+              Text(p['id']!, style: TextStyle(fontSize: 15,
+                  fontWeight: FontWeight.w700, color: themeNotifier.dark ? AppColors.darkText : const Color(0xFF1A1A2E),
+                  fontFamily: 'monospace')),
+              if (isNew) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.purple.withOpacity(themeNotifier.dark ? 0.3 : 0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text('NEW', style: TextStyle(fontSize: 8,
+                      fontWeight: FontWeight.w800, color: themeNotifier.dark ? AppColors.mint : AppColors.purple)),
+                ),
+              ],
+            ]),
             const SizedBox(height: 2),
-            // Pseudonymised name in muted style
-            Text(p['pseudo']!, style: const TextStyle(fontSize: 12, color: Colors.black45)),
+            Text(p['pseudo']!, style: TextStyle(fontSize: 12, color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black45)),
             const SizedBox(height: 4),
-            Text(p['diagnosis']!, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+            Text(p['diagnosis']!, style: TextStyle(fontSize: 12, color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black54)),
           ])),
-          const Icon(Icons.chevron_right, color: Colors.black26),
+          Icon(Icons.chevron_right, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black26),
         ]),
       ),
+    );
+  }
+}
+
+// ── Scanner hint bar ──────────────────────────────────────────────────────────
+class _ScannerHintBar extends StatelessWidget {
+  final bool scanning;
+  final String? error;
+  final VoidCallback onManualTap;
+  final VoidCallback onFocus;
+  const _ScannerHintBar({required this.scanning, required this.error,
+      required this.onManualTap, required this.onFocus});
+
+  @override
+  Widget build(BuildContext context) {
+    if (scanning) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF170345).withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF170345).withOpacity(0.2)),
+        ),
+        child: Row(children: [
+          const SizedBox(width: 14, height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF170345))),
+          const SizedBox(width: 12),
+          const Expanded(child: Text('Querying HL7 FHIR database…',
+              style: TextStyle(fontSize: 12, color: Color(0xFF170345),
+                  fontWeight: FontWeight.w600))),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(color: const Color(0xFF170345).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4)),
+            child: const Text('FHIR R4', style: TextStyle(fontSize: 8,
+                fontWeight: FontWeight.w800, color: Color(0xFF170345))),
+          ),
+        ]),
+      );
+    }
+    if (error != null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEF5350).withOpacity(0.06),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFEF5350).withOpacity(0.3)),
+        ),
+        child: Row(children: [
+          const Icon(Icons.error_outline, size: 15, color: Color(0xFFEF5350)),
+          const SizedBox(width: 10),
+          Expanded(child: Text(error!, style: const TextStyle(
+              fontSize: 12, color: Color(0xFFEF5350)))),
+          GestureDetector(
+            onTap: onManualTap,
+            child: const Text('Try again', style: TextStyle(fontSize: 11,
+                fontWeight: FontWeight.w700, color: Color(0xFF170345),
+                decoration: TextDecoration.underline)),
+          ),
+        ]),
+      );
+    }
+    return GestureDetector(
+      onTap: onFocus,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: themeNotifier.dark ? AppColors.darkCard : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12),
+        ),
+        child: Row(children: [
+          Icon(Icons.qr_code_2, size: 18, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black26),
+          const SizedBox(width: 12),
+          Expanded(child: Text(
+            'USB barcode scanner ready — scan a patient wristband to add or select',
+            style: TextStyle(fontSize: 12, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38))),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(
+              color: const Color(0xFF26C6A0).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: const Color(0xFF26C6A0).withOpacity(0.3)),
+            ),
+            child: const Text('READY', style: TextStyle(fontSize: 8,
+                fontWeight: FontWeight.w800, color: Color(0xFF26C6A0))),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── Manual barcode entry dialog ───────────────────────────────────────────────
+// ── Add Patient Dialog — tabbed: FHIR lookup | manual form ───────────────────
+class _ManualBarcodeDialog extends StatefulWidget {
+  final void Function(String) onSubmit;         // barcode lookup path
+  final void Function(Map<String, String>) onManualAdd; // direct add path
+  const _ManualBarcodeDialog({required this.onSubmit, required this.onManualAdd});
+  @override
+  State<_ManualBarcodeDialog> createState() => _ManualBarcodeDialogState();
+}
+
+class _ManualBarcodeDialogState extends State<_ManualBarcodeDialog>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabs;
+
+  // ── FHIR tab ──
+  final _barcodeCtrl = TextEditingController();
+  final _barcodeFocus = FocusNode();
+
+  // ── Manual form tab ──
+  final _formKey = GlobalKey<FormState>();
+  final _idCtrl          = TextEditingController();
+  final _nameCtrl        = TextEditingController();
+  final _pseudoCtrl      = TextEditingController();
+  final _ageCtrl         = TextEditingController();
+  final _diagnosisCtrl   = TextEditingController();
+  final _dobCtrl         = TextEditingController();
+  final _mrnCtrl         = TextEditingController();
+  String _gender = 'unknown';
+
+  @override
+  void initState() {
+    super.initState();
+    _tabs = TabController(length: 2, vsync: this);
+    _tabs.addListener(() => setState(() {}));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _barcodeFocus.requestFocus());
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    _barcodeCtrl.dispose(); _barcodeFocus.dispose();
+    _idCtrl.dispose(); _nameCtrl.dispose(); _pseudoCtrl.dispose();
+    _ageCtrl.dispose(); _diagnosisCtrl.dispose(); _dobCtrl.dispose();
+    _mrnCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submitManual() {
+    if (!_formKey.currentState!.validate()) return;
+    final id = _idCtrl.text.trim();
+    final name = _nameCtrl.text.trim();
+    // auto-generate pseudo from name if blank
+    final pseudo = _pseudoCtrl.text.trim().isNotEmpty
+        ? _pseudoCtrl.text.trim()
+        : name.isNotEmpty
+            ? '${name.split(' ').first} ${name.split(' ').length > 1 ? name.split(' ').last[0] + '.' : ''}'.trim()
+            : id;
+    widget.onManualAdd({
+      'id':        id,
+      'name':      name,
+      'pseudo':    pseudo,
+      'age':       _ageCtrl.text.trim(),
+      'diagnosis': _diagnosisCtrl.text.trim(),
+      'dob':       _dobCtrl.text.trim(),
+      'gender':    _gender,
+      'mrn':       _mrnCtrl.text.trim(),
+      'fhir_id':   '',
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = themeNotifier.theme;
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 500),
+        decoration: BoxDecoration(
+          color: t.card,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(t.dark ? 0.45 : 0.2),
+              blurRadius: 40, offset: const Offset(0, 12))],
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+
+          // ── Header ──
+          Container(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+            decoration: const BoxDecoration(
+              color: Color(0xFF170345),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(children: [
+              Row(children: [
+                const Icon(Icons.person_add_outlined, color: Colors.white70, size: 20),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Add Patient', style: TextStyle(fontSize: 14,
+                      fontWeight: FontWeight.w800, color: themeNotifier.dark ? AppColors.darkCard : Colors.white)),
+                  Text('Database lookup or manual entry',
+                      style: TextStyle(fontSize: 11, color: Colors.white38)),
+                ])),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: const Icon(Icons.close, color: Colors.white38, size: 18),
+                ),
+              ]),
+              const SizedBox(height: 16),
+              // Tab bar inside header
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: TabBar(
+                  controller: _tabs,
+                  labelColor: const Color(0xFF170345),
+                  unselectedLabelColor: Colors.white54,
+                  labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  unselectedLabelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                  indicator: BoxDecoration(
+                    color: themeNotifier.dark ? AppColors.darkCard : Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  dividerColor: Colors.transparent,
+                  padding: const EdgeInsets.all(3),
+                  tabs: const [
+                    Tab(icon: Icon(Icons.qr_code_scanner, size: 14), text: 'FHIR Lookup'),
+                    Tab(icon: Icon(Icons.edit_note, size: 14), text: 'Manual Entry'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+            ]),
+          ),
+
+          // ── Tab views ──
+          SizedBox(
+            height: _tabs.index == 0 ? 320 : 420,
+            child: TabBarView(
+              controller: _tabs,
+              children: [_fhirTab(), _manualTab()],
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  // ── Tab 0: FHIR barcode lookup ────────────────────────────────────────────
+  Widget _fhirTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFF388BFF).withOpacity(0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFF388BFF).withOpacity(0.2)),
+          ),
+          child: const Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.local_hospital_outlined, size: 13, color: Color(0xFF388BFF)),
+            SizedBox(width: 6),
+            Text('HL7 FHIR R4  ·  Patient lookup',
+                style: TextStyle(fontSize: 11, color: Color(0xFF388BFF),
+                    fontWeight: FontWeight.w600)),
+          ]),
+        ),
+        const SizedBox(height: 16),
+        Text('Patient Barcode / ID', style: TextStyle(fontSize: 11,
+            fontWeight: FontWeight.w700, color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black45, letterSpacing: 0.5)),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _barcodeCtrl,
+          focusNode: _barcodeFocus,
+          onSubmitted: (v) { if (v.trim().isNotEmpty) widget.onSubmit(v.trim()); },
+          style: const TextStyle(fontSize: 15, fontFamily: 'monospace',
+              fontWeight: FontWeight.w700),
+          decoration: InputDecoration(
+            hintText: 'e.g. PAT2024004',
+            hintStyle: TextStyle(color: themeNotifier.dark ? AppColors.darkMuted : Colors.black26,
+                fontWeight: FontWeight.normal, fontFamily: 'monospace'),
+            prefixIcon: const Icon(Icons.qr_code_2, color: Color(0xFF170345), size: 20),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFF170345), width: 1.5)),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text('Demo barcodes:', style: TextStyle(fontSize: 10,
+            color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6, runSpacing: 4,
+          children: _fhirDatabase.keys.map((k) => GestureDetector(
+            onTap: () {
+              _barcodeCtrl.text = k;
+              _barcodeCtrl.selection = TextSelection.fromPosition(
+                  TextPosition(offset: k.length));
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(color: themeNotifier.dark ? AppColors.darkSurface : const Color(0xFFF3F3F3),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
+              child: Text(k, style: const TextStyle(fontSize: 10,
+                  fontFamily: 'monospace', color: Colors.black54)),
+            ),
+          )).toList(),
+        ),
+        const SizedBox(height: 20),
+        Row(children: [
+          Expanded(child: TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38)),
+          )),
+          const SizedBox(width: 10),
+          Expanded(child: ElevatedButton.icon(
+            onPressed: () {
+              final v = _barcodeCtrl.text.trim();
+              if (v.isNotEmpty) widget.onSubmit(v);
+            },
+            icon: const Icon(Icons.search, size: 15),
+            label: const Text('Lookup Patient'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF170345),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          )),
+        ]),
+      ]),
+    );
+  }
+
+  // ── Tab 1: Manual entry form ──────────────────────────────────────────────
+  Widget _manualTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Form(
+        key: _formKey,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.withOpacity(0.25)),
+            ),
+            child: const Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.warning_amber_outlined, size: 13, color: Colors.orange),
+              SizedBox(width: 6),
+              Text('Manual entry — not verified against FHIR',
+                  style: TextStyle(fontSize: 11, color: Colors.orange,
+                      fontWeight: FontWeight.w600)),
+            ]),
+          ),
+          const SizedBox(height: 16),
+
+          // Row 1: Patient ID + MRN
+          Row(children: [
+            Expanded(child: _formField(_idCtrl, 'Patient ID *',
+                hint: 'PAT-2024-006', mono: true,
+                validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null)),
+            const SizedBox(width: 12),
+            Expanded(child: _formField(_mrnCtrl, 'MRN',
+                hint: 'MRN-0000-X')),
+          ]),
+          const SizedBox(height: 12),
+
+          // Row 2: Full name + Pseudonym
+          Row(children: [
+            Expanded(child: _formField(_nameCtrl, 'Full Name *',
+                hint: 'e.g. Jean Martin',
+                validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null)),
+            const SizedBox(width: 12),
+            Expanded(child: _formField(_pseudoCtrl, 'Pseudonym',
+                hint: 'Auto-generated if blank')),
+          ]),
+          const SizedBox(height: 12),
+
+          // Row 3: DOB + Age + Gender
+          Row(children: [
+            Expanded(child: _formField(_dobCtrl, 'Date of Birth',
+                hint: 'YYYY-MM-DD')),
+            const SizedBox(width: 12),
+            SizedBox(width: 72, child: _formField(_ageCtrl, 'Age',
+                hint: '45', keyboardType: TextInputType.number)),
+            const SizedBox(width: 12),
+            Expanded(child: _genderDropdown()),
+          ]),
+          const SizedBox(height: 12),
+
+          // Diagnosis (full width)
+          _formField(_diagnosisCtrl, 'Diagnosis *',
+              hint: 'e.g. Lung cancer — Stage II',
+              validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null),
+
+          const SizedBox(height: 20),
+          Row(children: [
+            Expanded(child: TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel', style: TextStyle(color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38)),
+            )),
+            const SizedBox(width: 10),
+            Expanded(child: ElevatedButton.icon(
+              onPressed: _submitManual,
+              icon: const Icon(Icons.person_add_outlined, size: 15),
+              label: const Text('Add Patient'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF170345),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            )),
+          ]),
+        ]),
+      ),
+    );
+  }
+
+  Widget _formField(
+    TextEditingController ctrl,
+    String label, {
+    String? hint,
+    bool mono = false,
+    TextInputType keyboardType = TextInputType.text,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: ctrl,
+      keyboardType: keyboardType,
+      validator: validator,
+      style: TextStyle(fontSize: 13,
+          fontFamily: mono ? 'monospace' : null,
+          fontWeight: mono ? FontWeight.w700 : FontWeight.normal),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        hintStyle: TextStyle(fontSize: 12, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black26),
+        labelStyle: TextStyle(fontSize: 12, color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black45),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: Color(0xFF170345), width: 1.5)),
+        errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: Color(0xFFEF5350))),
+        focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: Color(0xFFEF5350), width: 1.5)),
+        errorStyle: const TextStyle(fontSize: 9),
+      ),
+    );
+  }
+
+  Widget _genderDropdown() {
+    return DropdownButtonFormField<String>(
+      value: _gender,
+      onChanged: (v) => setState(() => _gender = v ?? 'unknown'),
+      style: TextStyle(fontSize: 13, color: themeNotifier.dark ? AppColors.darkText : const Color(0xFF1A1A2E)),
+      decoration: InputDecoration(
+        labelText: 'Gender',
+        labelStyle: TextStyle(fontSize: 12, color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black45),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: Color(0xFF170345), width: 1.5)),
+      ),
+      items: const [
+        DropdownMenuItem(value: 'male',    child: Text('Male')),
+        DropdownMenuItem(value: 'female',  child: Text('Female')),
+        DropdownMenuItem(value: 'unknown', child: Text('Other')),
+      ],
+    );
+  }
+}
+
+// ── FHIR Preview Dialog ───────────────────────────────────────────────────────
+class _FhirPreviewDialog extends StatelessWidget {
+  final Map<String, String> patient;
+  final VoidCallback onConfirm;
+  const _FhirPreviewDialog({required this.patient, required this.onConfirm});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = themeNotifier.theme;
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 480),
+        decoration: BoxDecoration(
+          color: t.card,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(t.dark ? 0.45 : 0.2),
+              blurRadius: 40, offset: const Offset(0, 12))],
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: const BoxDecoration(
+              color: Color(0xFF170345),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF388BFF).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.local_hospital_outlined,
+                    color: Color(0xFF388BFF), size: 18),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('HL7 FHIR Patient Record',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: themeNotifier.dark ? AppColors.darkCard : Colors.white)),
+                Text('resourceType: Patient  ·  R4',
+                    style: TextStyle(fontSize: 10, color: Colors.white38, fontFamily: 'monospace')),
+              ])),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF26C6A0).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFF26C6A0).withOpacity(0.5)),
+                ),
+                child: const Text('200 OK', style: TextStyle(fontSize: 9,
+                    fontWeight: FontWeight.w800, color: Color(0xFF26C6A0),
+                    fontFamily: 'monospace')),
+              ),
+            ]),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: themeNotifier.dark ? AppColors.darkElevated : const Color(0xFFF8F9FF),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFF170345).withOpacity(0.15)),
+                ),
+                child: Column(children: [
+                  Row(children: [
+                    Container(
+                      width: 52, height: 52,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF170345).withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.person_outlined, color: Color(0xFF170345), size: 28),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(patient['id']!, style: const TextStyle(fontSize: 16,
+                          fontWeight: FontWeight.w800, color: Color(0xFF1A1A2E),
+                          fontFamily: 'monospace')),
+                      const SizedBox(height: 2),
+                      Text(patient['pseudo']!, style: TextStyle(
+                          fontSize: 12, color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black45)),
+                    ])),
+                    Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      Text('fhir/${patient['fhir_id']}', style: TextStyle(
+                          fontSize: 9, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black26, fontFamily: 'monospace')),
+                      Text(patient['mrn']!, style: TextStyle(fontSize: 10,
+                          fontWeight: FontWeight.w600, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38,
+                          fontFamily: 'monospace')),
+                    ]),
+                  ]),
+                  const SizedBox(height: 16),
+                  Divider(height: 1, color: t.border),
+                  const SizedBox(height: 16),
+                  Row(children: [
+                    Expanded(child: _fhirField('identifier', patient['id']!)),
+                    Expanded(child: _fhirField('birthDate', patient['dob']!)),
+                    Expanded(child: _fhirField('gender', patient['gender']!)),
+                    Expanded(child: _fhirField('age', '${patient['age']} y')),
+                  ]),
+                  const SizedBox(height: 14),
+                  _fhirField('condition / diagnosis', patient['diagnosis']!),
+                ]),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFA726).withOpacity(0.07),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFFA726).withOpacity(0.3)),
+                ),
+                child: Row(children: [
+                  Icon(Icons.info_outline, size: 14, color: Color(0xFFFFA726)),
+                  SizedBox(width: 8),
+                  Expanded(child: Text(
+                    'Patient identity verified via HL7 FHIR R4. Confirm before opening session.',
+                    style: TextStyle(fontSize: 10, color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black45, height: 1.4))),
+                ]),
+              ),
+              const SizedBox(height: 20),
+              Row(children: [
+                Expanded(child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10),
+                        side: BorderSide(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
+                  ),
+                  child: Text('Cancel', style: TextStyle(color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black45)),
+                )),
+                const SizedBox(width: 12),
+                Expanded(flex: 2, child: ElevatedButton.icon(
+                  onPressed: onConfirm,
+                  icon: const Icon(Icons.check_circle_outline, size: 16),
+                  label: const Text('Confirm & Open Session'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF170345),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                )),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _fhirField(String key, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 12, bottom: 4),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(key, style: TextStyle(fontSize: 8, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38,
+            fontFamily: 'monospace', fontWeight: FontWeight.w600, letterSpacing: 0.3)),
+        const SizedBox(height: 3),
+        Text(value, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+            color: themeNotifier.dark ? AppColors.darkText : const Color(0xFF1A1A2E)), overflow: TextOverflow.ellipsis),
+      ]),
     );
   }
 }
@@ -321,7 +1367,7 @@ class _MainDashboardState extends State<MainDashboard> {
   Timer? _revealTimer;
   final List<String> _auditLog = [];
 
-  static const String _backendUrl = 'http://localhost:8080';
+  static const String _backendUrl = 'https://therame-simulator-production.up.railway.app';
 
   // ── Targets (survive tab switches) ──────────────────────────────────────
   final Map<String, double> targets = {
@@ -362,33 +1408,30 @@ class _MainDashboardState extends State<MainDashboard> {
   final List<ProtocolStep> _steps = [
     ProtocolStep(id:'intake',       title:'Sample Intake',
         description:'Biopsy sample loaded into inlet port. System priming microfluidic channels.',
-        icon:'🧫', durationSeconds:120),
+        icon:Icons.science, durationSeconds:120),
     ProtocolStep(id:'dissociation', title:'Cell Dissociation',
         description:'Enzymatic dissociation of tumor tissue into single-cell suspension.',
-        icon:'⚗️', durationSeconds:300),
+        icon:Icons.biotech, durationSeconds:300),
     ProtocolStep(id:'droplets',     title:'Droplet Generation',
         description:'Cells encapsulated in picoliter droplets. Target: 1 cell / droplet.',
-        icon:'💧', durationSeconds:180),
+        icon:Icons.water_drop, durationSeconds:180),
     ProtocolStep(id:'drug_loading', title:'Drug Combination Loading',
         description:'Combinatorial drug library injected into droplet array across 24 wells.',
-        icon:'💊', durationSeconds:240),
+        icon:Icons.medication, durationSeconds:240),
     ProtocolStep(id:'incubation',   title:'Incubation',
         description:'Cells incubated with drugs at 37°C, 5% CO₂ for 48h. Environment monitored continuously.',
-        icon:'🌡', durationSeconds:600),
+        icon:Icons.thermostat, durationSeconds:600),
     ProtocolStep(id:'imaging',      title:'Fluorescence Imaging',
         description:'Automated microscopy scan of all wells. Viability markers imaged per droplet.',
-        icon:'🔬', durationSeconds:300),
+        icon:Icons.search, durationSeconds:300),
     ProtocolStep(id:'analysis',     title:'Data Analysis & Ranking',
         description:'ML model scores drug efficacy. Top combinations ranked and quality-controlled.',
-        icon:'📊', durationSeconds:120),
-    ProtocolStep(id:'report',       title:'Report Ready',
-        description:'Results validated. Clinical report available for physician review.',
-        icon:'📋', durationSeconds:0),
+        icon:Icons.bar_chart, durationSeconds:120),
   ];
 
   // Oncology is unlocked once imaging step is reached
   bool get _oncologyUnlocked {
-    const unlockedAt = {'imaging', 'analysis', 'report'};
+    const unlockedAt = {'imaging', 'analysis'};
     if (_runStatus == ProtocolStatus.completed) return true;
     if (_activeStep >= _steps.length) return true;
     return unlockedAt.contains(_steps[_activeStep].id) ||
@@ -426,6 +1469,12 @@ class _MainDashboardState extends State<MainDashboard> {
         if (_activeStep < _steps.length - 1) {
           _activeStep++;
           _steps[_activeStep].status = StepStatus.active;
+          // If next step has 0 duration, complete it immediately
+          if (_steps[_activeStep].durationSeconds == 0) {
+            _steps[_activeStep].status = StepStatus.done;
+            _runStatus = ProtocolStatus.completed;
+            _protocolTicker?.cancel();
+          }
         } else {
           _runStatus = ProtocolStatus.completed;
           _steps.last.status = StepStatus.done;
@@ -481,6 +1530,16 @@ class _MainDashboardState extends State<MainDashboard> {
     });
   }
 
+  void _autoShowReport() {
+    showProtocolReport(
+      context,
+      patient:      widget.patient,
+      steps:        _steps,
+      totalElapsed: _totalElapsed,
+      technician:   widget.technician,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -534,8 +1593,9 @@ class _MainDashboardState extends State<MainDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    final t = themeNotifier.theme;
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F3F3),
+      backgroundColor: t.surface,
       body: SafeArea(
         child: Column(children: [
           _topBar(),
@@ -571,6 +1631,8 @@ class _MainDashboardState extends State<MainDashboard> {
                       unlocked:      _oncologyUnlocked,
                       runStatus:     _runStatus,
                       activeStepId:  _activeStepId,
+                      patient:       widget.patient,
+                      technician:    widget.technician,
                       onGoToProtocol: () => setState(() => _tab = 1),
                     )),
         ]),
@@ -578,10 +1640,34 @@ class _MainDashboardState extends State<MainDashboard> {
     );
   }
 
-  Widget _topBar() => Container(
-    color: Colors.white,
+  Widget _topBar() { final t = themeNotifier.theme; return Container(
+    color: t.topBar,
     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-    child: Row(children: [
+    child: Stack(alignment: Alignment.center, children: [
+      // ── Tabs — absolutely centered in the full bar width ──
+      Center(
+        child: Container(
+          decoration: BoxDecoration(color: t.dark ? AppColors.darkElevated : const Color(0xFFF3F3F3),
+              borderRadius: BorderRadius.circular(10)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            _tabBtn('🧪  Environment', 0),
+            _tabBtn('⚗️  Protocol',    1,
+                badge: _runStatus == ProtocolStatus.running ? 'LIVE'
+                     : _runStatus == ProtocolStatus.paused  ? 'PAUSED'
+                     : null,
+                badgeColor: _runStatus == ProtocolStatus.running
+                     ? const Color(0xFF388BFF)
+                     : const Color(0xFFFFA726)),
+            _tabBtn('🔬  Oncology',    2,
+                badge: !_oncologyUnlocked && _runStatus != ProtocolStatus.idle
+                     ? 'LOCKED' : null,
+                badgeColor: const Color(0xFF9E9E9E)),
+          ]),
+        ),
+      ),
+      // ── Left + Right content — equal Expanded sides force true centering ──
+      Row(children: [
+      Expanded(child: Row(children: [
 
       // Patient badge — ID always visible, name revealed on tap
       GestureDetector(
@@ -600,7 +1686,7 @@ class _MainDashboardState extends State<MainDashboard> {
             border: Border.all(color: const Color(0xFF1A3A6E).withOpacity(0.2)),
           ),
           child: Row(children: [
-            const Icon(Icons.person, size: 14, color: Color(0xFF1A3A6E)),
+            Icon(Icons.person, size: 14, color: themeNotifier.dark ? AppColors.mint : const Color(0xFF1A3A6E)),
             const SizedBox(width: 6),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               // Always show patient ID
@@ -613,12 +1699,12 @@ class _MainDashboardState extends State<MainDashboard> {
                 child: _nameRevealed
                     ? Text(widget.patient['pseudo']!,
                         key: const ValueKey('revealed'),
-                        style: const TextStyle(fontSize: 9, color: Colors.black45))
+                        style: TextStyle(fontSize: 9, color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black45))
                     : const Text('', key: ValueKey('hidden')),
               ),
             ]),
             const SizedBox(width: 6),
-            const Icon(Icons.swap_horiz, size: 13, color: Color(0xFF1A3A6E)),
+            Icon(Icons.swap_horiz, size: 13, color: themeNotifier.dark ? AppColors.mint : const Color(0xFF1A3A6E)),
           ]),
         ),
       ),
@@ -635,22 +1721,22 @@ class _MainDashboardState extends State<MainDashboard> {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               color: _nameRevealed
-                  ? const Color(0xFFFFA726).withOpacity(0.15)
-                  : Colors.black.withOpacity(0.04),
+                  ? AppColors.amber.withOpacity(0.15)
+                  : t.surface,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: _nameRevealed
-                    ? const Color(0xFFFFA726).withOpacity(0.6)
-                    : Colors.black12),
+                    ? AppColors.amber.withOpacity(0.6)
+                    : t.border),
             ),
             child: Row(children: [
               Icon(_nameRevealed ? Icons.visibility : Icons.visibility_off,
                   size: 13,
-                  color: _nameRevealed ? const Color(0xFFFFA726) : Colors.black38),
+                  color: _nameRevealed ? AppColors.amber : (themeNotifier.dark ? AppColors.darkSubtext : Colors.black38)),
               const SizedBox(width: 4),
               Text(_nameRevealed ? 'Visible' : 'Reveal',
                   style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
-                      color: _nameRevealed ? const Color(0xFFFFA726) : Colors.black38)),
+                      color: _nameRevealed ? AppColors.amber : (themeNotifier.dark ? AppColors.darkSubtext : Colors.black38))),
             ]),
           ),
         ),
@@ -668,67 +1754,72 @@ class _MainDashboardState extends State<MainDashboard> {
             decoration: BoxDecoration(
               color: Colors.black.withOpacity(0.04),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.black12),
+              border: Border.all(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12),
             ),
             child: Row(children: [
-              const Icon(Icons.receipt_long, size: 13, color: Colors.black38),
+              Icon(Icons.receipt_long, size: 13, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38),
               const SizedBox(width: 4),
               Text('Audit (${_auditLog.length})',
-                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
-                      color: Colors.black38)),
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
+                      color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38)),
             ]),
           ),
         ),
       ),
 
       const SizedBox(width: 12),
+      ])), // end left Expanded
 
-      // Tabs
-      Container(
-        decoration: BoxDecoration(color: const Color(0xFFF3F3F3),
-            borderRadius: BorderRadius.circular(10)),
-        child: Row(children: [
-          _tabBtn('🧪  Environment', 0),
-          _tabBtn('⚗️  Protocol',    1,
-              badge: _runStatus == ProtocolStatus.running ? 'LIVE'
-                   : _runStatus == ProtocolStatus.paused  ? 'PAUSED'
-                   : null,
-              badgeColor: _runStatus == ProtocolStatus.running
-                   ? const Color(0xFF388BFF)
-                   : const Color(0xFFFFA726)),
-          _tabBtn('🔬  Oncology',    2,
-              badge: !_oncologyUnlocked && _runStatus != ProtocolStatus.idle
-                   ? 'LOCKED' : null,
-              badgeColor: const Color(0xFF9E9E9E)),
-        ]),
-      ),
-
-      const Spacer(),
-
-      Text(widget.technician,
-          style: const TextStyle(fontSize: 12, color: Colors.black45)),
-      const SizedBox(width: 12),
-      TextButton.icon(
-        onPressed: () async {
-          await _stopLogger();
-          if (!mounted) return;
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const LoginScreen()));
-        },
-        icon: const Icon(Icons.logout, size: 14),
-        label: const Text('Sign out', style: TextStyle(fontSize: 12)),
-        style: TextButton.styleFrom(foregroundColor: Colors.black38),
-      ),
-    ]),
-  );
+      // Right side — same Expanded so both sides are equal width
+      Expanded(child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+        // Dark mode toggle
+        GestureDetector(
+          onTap: () => setState(() { themeNotifier.toggle(); }),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: t.dark ? AppColors.darkElevated : const Color(0xFFF3F3F3),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: t.border),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(t.dark ? Icons.dark_mode : Icons.light_mode,
+                  size: 13, color: t.dark ? AppColors.amber : AppColors.purple),
+              const SizedBox(width: 5),
+              Text(t.dark ? 'Dark' : 'Light',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
+                      color: t.dark ? AppColors.amber : AppColors.purple)),
+            ]),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(widget.technician,
+            style: TextStyle(fontSize: 12, color: t.muted)),
+        const SizedBox(width: 12),
+        TextButton.icon(
+          onPressed: () async {
+            await _stopLogger();
+            if (!mounted) return;
+            Navigator.pushReplacement(context,
+                MaterialPageRoute(builder: (_) => const LoginScreen()));
+          },
+          icon: const Icon(Icons.logout, size: 14),
+          label: const Text('Sign out', style: TextStyle(fontSize: 12)),
+          style: TextButton.styleFrom(foregroundColor: themeNotifier.dark ? AppColors.darkSubtext : Colors.black38),
+        ),
+      ])), // end right Expanded
+    ]),   // end Row
+    ]),   // end Stack
+  ); } // end _topBar
 
   void _showAuditLog(BuildContext context) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(children: [
-          Icon(Icons.receipt_long, size: 18, color: Color(0xFF1A3A6E)),
+        title: Row(children: [
+          Icon(Icons.receipt_long, size: 18, color: themeNotifier.dark ? AppColors.mint : const Color(0xFF1A3A6E)),
           SizedBox(width: 8),
           Text('Audit Log', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         ]),
@@ -736,8 +1827,8 @@ class _MainDashboardState extends State<MainDashboard> {
           width: 400,
           height: 300,
           child: _auditLog.isEmpty
-              ? const Center(child: Text('No events recorded yet.',
-                  style: TextStyle(color: Colors.black38, fontSize: 13)))
+              ? Center(child: Text('No events recorded yet.',
+                  style: TextStyle(color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38, fontSize: 13)))
               : ListView.separated(
                   itemCount: _auditLog.length,
                   separatorBuilder: (_, __) => const Divider(height: 1),
@@ -764,7 +1855,9 @@ class _MainDashboardState extends State<MainDashboard> {
   }
 
   Widget _tabBtn(String label, int index,
-      {String? badge, Color? badgeColor}) {
+      {
+    String? badge, Color? badgeColor}) {
+    final t   = themeNotifier.theme;
     final sel = _tab == index;
     return GestureDetector(
       onTap: () => setState(() => _tab = index),
@@ -772,12 +1865,12 @@ class _MainDashboardState extends State<MainDashboard> {
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: sel ? const Color(0xFF1A1A2E) : Colors.transparent,
+          color: sel ? (t.dark ? AppColors.darkElevated : AppColors.navy) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-              color: sel ? Colors.white : Colors.black45)),
+              color: sel ? Colors.white : t.muted)),
           if (badge != null) ...[
             const SizedBox(width: 6),
             Container(
@@ -838,6 +1931,8 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
   bool _connected = false;
   String _status = 'Connecting...';
   bool _settingsMode = false;
+  bool _alarmsMode   = false;
+  bool _exporting    = false;
 
   // Step sizes for +/- buttons
   static const Map<String, double> _steps = {
@@ -859,13 +1954,39 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
     'ph':           (6.0,   8.0),
   };
 
+  static const Map<String, String> _units = {
+    'temperature': '°C', 'humidity': '%RH', 'co2': '%',
+    'o2': '%', 'pressure': 'mbar', 'ph': 'pH',
+  };
+
+  // Alarm thresholds — warning and critical bands per sensor
+  final Map<String, Map<String, double>> _warningThresholds = {
+    'temperature': {'lo': 36.0,  'hi': 38.0},
+    'humidity':    {'lo': 90.0,  'hi': 98.0},
+    'co2':         {'lo': 4.5,   'hi': 5.5},
+    'o2':          {'lo': 19.0,  'hi': 22.0},
+    'pressure':    {'lo': 1005.0,'hi': 1020.0},
+    'ph':          {'lo': 7.2,   'hi': 7.6},
+  };
+  final Map<String, Map<String, double>> _criticalThresholds = {
+    'temperature': {'lo': 35.0, 'hi': 39.5},
+    'humidity':    {'lo': 85.0, 'hi': 100.0},
+    'co2':         {'lo': 3.5,  'hi': 7.0},
+    'o2':          {'lo': 17.0, 'hi': 24.0},
+    'pressure':    {'lo': 990.0,'hi': 1035.0},
+    'ph':          {'lo': 6.8,  'hi': 7.8},
+  };
+
   // History for sparklines — last 60 pts per sensor
   final Map<String, List<double>> _history = {
     'temperature': [], 'humidity': [], 'co2': [],
     'o2': [], 'pressure': [], 'ph': [],
   };
 
-  final String _url = 'http://localhost:8080/api/environment';
+  // Timestamped rows for CSV export
+  final List<Map<String, dynamic>> _exportLog = [];
+
+  final String _url = 'https://therame-simulator-production.up.railway.app/api/environment';
 
   @override
   void initState() { super.initState(); _start(); }
@@ -888,6 +2009,11 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
             _history[key]?.add(_readings[key]!.value);
             if ((_history[key]?.length ?? 0) > 60) _history[key]?.removeAt(0);
           });
+          // Append snapshot to export log (keep last 3600 = 1h at 1Hz)
+          final row = <String, dynamic>{'ts': DateTime.now().toIso8601String()};
+          d.forEach((key, val) => row[key] = (val['value'] as num).toDouble());
+          _exportLog.add(row);
+          if (_exportLog.length > 3600) _exportLog.removeAt(0);
         });
       }
     } catch (_) {
@@ -903,8 +2029,104 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
     }
   }
 
+  // Compute alarm level for a value against editable thresholds
+  String _computeAlarm(String key, double value) {
+    final w = _warningThresholds[key];
+    final c = _criticalThresholds[key];
+    if (c != null && (value < c['lo']! || value > c['hi']!)) return 'critical';
+    if (w != null && (value < w['lo']! || value > w['hi']!)) return 'warning';
+    return 'ok';
+  }
+
+  // Export history to CSV and save to Downloads
+  Future<void> _exportCsv() async {
+    if (_exportLog.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('No data to export yet — wait for sensor readings.'),
+        backgroundColor: Color(0xFFFFA726),
+      ));
+      return;
+    }
+
+    // Build default filename and dir
+    final now = DateTime.now();
+    final defaultName =
+        'sensor_export_${widget.patient['id']}_'
+        '${now.year}${now.month.toString().padLeft(2,'0')}'
+        '${now.day.toString().padLeft(2,'0')}'
+        '_${now.hour.toString().padLeft(2,'0')}'
+        '${now.minute.toString().padLeft(2,'0')}.csv';
+    final defaultDir = await getDownloadsDirectory() ??
+                       await getApplicationDocumentsDirectory();
+
+    // Show save-location dialog
+    if (!mounted) return;
+    final result = await showDialog<String>(
+      context: context,
+      barrierColor: Colors.black45,
+      builder: (_) => _CsvSaveDialog(
+        defaultDir: defaultDir.path,
+        defaultName: defaultName,
+      ),
+    );
+    if (result == null) return; // user cancelled
+
+    setState(() => _exporting = true);
+    try {
+      const keys = ['temperature','humidity','co2','o2','pressure','ph'];
+      final buf = StringBuffer();
+      buf.writeln('timestamp,${keys.join(',')}');
+      for (final row in _exportLog) {
+        buf.write(row['ts']);
+        for (final k in keys) {
+          buf.write(',');
+          buf.write(row[k]?.toStringAsFixed(3) ?? '');
+        }
+        buf.writeln();
+      }
+      final file = File(result);
+      await file.parent.create(recursive: true);
+      await file.writeAsString(buf.toString());
+      setState(() => _exporting = false);
+      final dir = file.parent.path;
+      if (Platform.isMacOS) await Process.run('open', [dir]);
+      else if (Platform.isLinux) await Process.run('xdg-open', [dir]);
+      else if (Platform.isWindows) await Process.run('explorer', [dir]);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Exported ${_exportLog.length} rows → ${file.path.split('/').last}'),
+          backgroundColor: const Color(0xFF388BFF),
+        ));
+      }
+    } catch (e) {
+      setState(() => _exporting = false);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Export failed: $e'),
+        backgroundColor: const Color(0xFFEF5350),
+      ));
+    }
+  }
+
+  // Open alarm threshold editor dialog
+  void _showAlarmEditor(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black45,
+      builder: (_) => _AlarmThresholdDialog(
+        warningThresholds: _warningThresholds,
+        criticalThresholds: _criticalThresholds,
+        units: _units,
+        onSave: (warn, crit) => setState(() {
+          warn.forEach((k, v) => _warningThresholds[k] = v);
+          crit.forEach((k, v) => _criticalThresholds[k] = v);
+        }),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final t = themeNotifier.theme;
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -913,70 +2135,113 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(widget.patient['diagnosis']!,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                    color: Color(0xFF1A1A2E))),
-            const Text('Lab-on-Chip Incubation Environment',
-                style: TextStyle(fontSize: 11, color: Colors.black38)),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: t.text)),
+            Text('Lab-on-Chip Incubation Environment',
+                style: TextStyle(fontSize: 11, color: t.muted)),
           ]),
           Row(children: [
-            // Settings toggle
+
+            // ── Export CSV button ──
+            GestureDetector(
+              onTap: _exporting ? null : _exportCsv,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: themeNotifier.dark ? AppColors.darkCard : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12),
+                ),
+                child: Row(children: [
+                  _exporting
+                    ? const SizedBox(width: 12, height: 12,
+                        child: CircularProgressIndicator(strokeWidth: 2,
+                            color: Color(0xFF388BFF)))
+                    : const Icon(Icons.download_outlined, size: 13,
+                        color: Color(0xFF388BFF)),
+                  const SizedBox(width: 6),
+                  Text(_exporting ? 'Exporting…' : 'Export CSV',
+                      style: const TextStyle(fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF388BFF))),
+                ]),
+              ),
+            ),
+
+            const SizedBox(width: 8),
+
+            // ── Alarm thresholds button ──
+            GestureDetector(
+              onTap: () {
+                setState(() { _alarmsMode = !_alarmsMode; if (_alarmsMode) _settingsMode = false; });
+                if (!_alarmsMode) _showAlarmEditor(context);
+                else _showAlarmEditor(context);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: themeNotifier.dark ? AppColors.darkCard : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12),
+                ),
+                child: const Row(children: [
+                  Icon(Icons.notifications_active_outlined, size: 13,
+                      color: Color(0xFFFFA726)),
+                  SizedBox(width: 6),
+                  Text('Alarms', style: TextStyle(fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFFFA726))),
+                ]),
+              ),
+            ),
+
+            const SizedBox(width: 8),
+
+            // ── Target settings toggle ──
             GestureDetector(
               onTap: () => setState(() => _settingsMode = !_settingsMode),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
-                  color: _settingsMode
-                      ? const Color(0xFF1A3A6E)
-                      : Colors.white,
+                  color: _settingsMode ? AppColors.purple : (themeNotifier.dark ? AppColors.darkElevated : Colors.white),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: _settingsMode
-                        ? const Color(0xFF1A3A6E)
-                        : Colors.black12),
+                    color: _settingsMode ? AppColors.purple : (themeNotifier.dark ? AppColors.darkText.withOpacity(0.25) : Colors.black12)),
                   boxShadow: _settingsMode ? [BoxShadow(
-                      color: const Color(0xFF1A3A6E).withOpacity(0.25),
+                      color: const Color(0xFF170345).withOpacity(0.25),
                       blurRadius: 8, offset: const Offset(0, 2))] : [],
                 ),
                 child: Row(children: [
                   Icon(
                     _settingsMode ? Icons.tune : Icons.tune_outlined,
                     size: 13,
-                    color: _settingsMode ? Colors.white : Colors.black45,
+                    color: _settingsMode ? Colors.white : (themeNotifier.dark ? AppColors.darkSubtext : Colors.black45),
                   ),
                   const SizedBox(width: 6),
-                  Text(
-                    _settingsMode ? 'Settings' : 'Settings',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: _settingsMode ? Colors.white : Colors.black45,
-                    ),
-                  ),
+                  Text('Settings', style: TextStyle(
+                      fontSize: 11, fontWeight: FontWeight.w600,
+                      color: _settingsMode ? Colors.white : (themeNotifier.dark ? AppColors.darkSubtext : Colors.black45))),
                   const SizedBox(width: 8),
-                  // Pill toggle indicator
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     width: 28, height: 16,
                     decoration: BoxDecoration(
                       color: _settingsMode
-                          ? Colors.white.withOpacity(0.3)
-                          : Colors.black12,
+                          ? Colors.white.withOpacity(0.3) : (themeNotifier.dark ? AppColors.darkBorder : Colors.black12),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Stack(children: [
                       AnimatedAlign(
                         duration: const Duration(milliseconds: 200),
                         alignment: _settingsMode
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
+                            ? Alignment.centerRight : Alignment.centerLeft,
                         child: Container(
                           width: 12, height: 12,
                           margin: const EdgeInsets.symmetric(horizontal: 2),
                           decoration: BoxDecoration(
-                            color: _settingsMode ? Colors.white : Colors.white,
-                            shape: BoxShape.circle,
-                          ),
+                            color: themeNotifier.dark ? AppColors.darkCard : Colors.white, shape: BoxShape.circle),
                         ),
                       ),
                     ]),
@@ -984,10 +2249,11 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
                 ]),
               ),
             ),
+
             const SizedBox(width: 12),
             statusBadge(_connected, _status,
                 onTap: _connected ? null
-                    : () => launchDocker(context, 'temp-sensor', 8080)),
+                    : () => Platform.isMacOS ? launchDocker(context, 'temp-sensor', 8080) : _fetch()),
           ]),
         ]),
 
@@ -1054,10 +2320,12 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
   }
 
   Widget _sensorCard(String label, String key, String emoji, bool compact, bool settings) {
+    final t       = themeNotifier.theme;
     final r       = _readings[key];
     final history = _history[key] ?? [];
-    final alarm   = r?.alarm ?? 'ok';
-    final col     = settings ? const Color(0xFF1A3A6E) : _alarmColor(alarm);
+    // Use editable thresholds for alarm level; fall back to backend alarm
+    final alarm   = r != null ? _computeAlarm(key, r.value) : (r?.alarm ?? 'ok');
+    final col     = settings ? const Color(0xFF170345) : _alarmColor(alarm);
     final target  = widget.targets[key] ?? 0.0;
     final step    = _steps[key]   ?? 1.0;
     final bounds  = _bounds[key]  ?? (0.0, 999.0);
@@ -1071,7 +2339,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
       duration: const Duration(milliseconds: 250),
       padding: EdgeInsets.all(compact ? 12 : 16),
       decoration: BoxDecoration(
-        color: settings ? const Color(0xFF1A3A6E).withOpacity(0.04) : Colors.white,
+        color: settings ? const Color(0xFF1A3A6E).withOpacity(0.04) : (themeNotifier.dark ? AppColors.darkCard : Colors.white),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: settings
@@ -1093,7 +2361,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
           Flexible(child: Text(label,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: labelSize,
-                  color: settings ? const Color(0xFF1A3A6E) : Colors.black45,
+                  color: settings ? const Color(0xFF1A3A6E) : (themeNotifier.dark ? AppColors.darkText : Colors.black45),
                   fontWeight: FontWeight.w600))),
           const Spacer(),
           if (!settings && alarm != 'ok') Container(
@@ -1106,11 +2374,11 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
           if (settings) Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
             decoration: BoxDecoration(
-                color: const Color(0xFF1A3A6E).withOpacity(0.1),
+                color: AppColors.purple.withOpacity(t.dark ? 0.25 : 0.1),
                 borderRadius: BorderRadius.circular(4)),
-            child: const Text('TARGET',
+            child: Text('TARGET',
                 style: TextStyle(fontSize: 7, fontWeight: FontWeight.w800,
-                    color: Color(0xFF1A3A6E))),
+                    color: t.dark ? AppColors.mint : AppColors.purple)),
           ),
         ]),
 
@@ -1120,7 +2388,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
         if (!settings) ...[
           r == null
               ? Text('--', style: TextStyle(fontSize: valueSize,
-                  fontWeight: FontWeight.w800, color: Colors.black26))
+                  fontWeight: FontWeight.w800, color: t.muted))
               : Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                   Flexible(child: Text(
                     key == 'ph'
@@ -1133,19 +2401,19 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 2, left: 3),
                     child: Text(r.unit,
-                        style: TextStyle(fontSize: unitSize, color: Colors.black38)),
+                        style: TextStyle(fontSize: unitSize, color: t.muted)),
                   ),
                 ]),
           if (r != null) Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Text('Target: ${(widget.targets[key] ?? r.target).toStringAsFixed(step < 1 ? 2 : 1)}$unit',
-                style: TextStyle(fontSize: compact ? 8 : 10, color: Colors.black26)),
+                style: TextStyle(fontSize: compact ? 8 : 10, color: t.muted)),
           ),
           SizedBox(height: compact ? 6 : 10),
           Expanded(
             child: history.length < 2
                 ? Center(child: Text('...', style: TextStyle(
-                    color: Colors.black12, fontSize: compact ? 9 : 11)))
+                    color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12, fontSize: compact ? 9 : 11)))
                 : LineChart(_sparkline(history, col)),
           ),
         ],
@@ -1190,17 +2458,17 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
                           padding: const EdgeInsets.only(bottom: 2, left: 3),
                           child: Text(unit,
                               style: TextStyle(fontSize: unitSize,
-                                  color: Colors.black38)),
+                                  color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38)),
                         ),
                       ],
                     ),
                     const SizedBox(height: 3),
                     Row(mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                      const Icon(Icons.edit, size: 9, color: Colors.black26),
+                      Icon(Icons.edit, size: 9, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black26),
                       const SizedBox(width: 3),
                       Text('tap to edit',
-                          style: const TextStyle(fontSize: 8, color: Colors.black26)),
+                          style: TextStyle(fontSize: 8, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black26)),
                     ]),
                   ],
                 ),
@@ -1231,7 +2499,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: const Color(0xFF1A3A6E).withOpacity(0.2)),
         ),
-        child: Icon(icon, size: compact ? 14 : 18, color: const Color(0xFF1A3A6E)),
+        child: Icon(icon, size: compact ? 14 : 18, color: themeNotifier.dark ? AppColors.mint : const Color(0xFF1A3A6E)),
       ),
     );
   }
@@ -1245,25 +2513,25 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(children: [
-          const Icon(Icons.tune, size: 16, color: Color(0xFF1A3A6E)),
+          Icon(Icons.tune, size: 16, color: themeNotifier.dark ? AppColors.mint : const Color(0xFF1A3A6E)),
           const SizedBox(width: 8),
           Text('Set $label Target',
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
         ]),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           Text('Range: ${bounds.$1} – ${bounds.$2} $unit',
-              style: const TextStyle(fontSize: 11, color: Colors.black38)),
+              style: TextStyle(fontSize: 11, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38)),
           const SizedBox(height: 14),
           TextField(
             controller: ctrl,
             autofocus: true,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700,
-                color: Color(0xFF1A3A6E)),
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700,
+                color: themeNotifier.dark ? AppColors.mint : const Color(0xFF1A3A6E)),
             decoration: InputDecoration(
               suffixText: unit,
-              suffixStyle: const TextStyle(fontSize: 13, color: Colors.black38),
+              suffixStyle: TextStyle(fontSize: 13, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38),
               contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 12),
               border: OutlineInputBorder(
@@ -1283,8 +2551,8 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel',
-                style: TextStyle(color: Colors.black38)),
+            child: Text('Cancel',
+                style: TextStyle(color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -1336,7 +2604,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
         dotData: FlDotData(show: false),
         belowBarData: BarAreaData(show: true, gradient: LinearGradient(
           begin: Alignment.topCenter, end: Alignment.bottomCenter,
-          colors: [color.withOpacity(0.2), color.withOpacity(0.0)],
+          colors: [color.withOpacity(themeNotifier.dark ? 0.35 : 0.2), color.withOpacity(0.0)],
         )),
       )],
     );
@@ -1352,7 +2620,8 @@ enum ProtocolStatus { idle, running, paused, completed, aborted }
 enum StepStatus     { pending, active, done, failed }
 
 class ProtocolStep {
-  final String id, title, description, icon;
+  final String id, title, description;
+  final IconData icon;
   final int durationSeconds; // nominal duration for progress bar
   StepStatus status;
   int elapsedSeconds;
@@ -1407,6 +2676,7 @@ class RunProtocolPanel extends StatelessWidget {
   // ── Root build ─────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final t = themeNotifier.theme;
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1415,10 +2685,9 @@ class RunProtocolPanel extends StatelessWidget {
         Row(children: [
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(patient['diagnosis'] ?? '',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                    color: Color(0xFF1A1A2E))),
-            const Text('TheraMeDx1 Sampler™ — Run Protocol',
-                style: TextStyle(fontSize: 11, color: Colors.black38)),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: t.text)),
+            Text('Lab-on-Chip Monitor — Run Protocol',
+                style: TextStyle(fontSize: 11, color: t.muted)),
           ]),
           const Spacer(),
           _statusBadge(context),
@@ -1467,11 +2736,12 @@ class RunProtocolPanel extends StatelessWidget {
 
   // ── Left stepper ───────────────────────────────────────────────────────────
   Widget _stepperList() {
+    final t = themeNotifier.theme;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: t.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black12),
+        border: Border.all(color: t.border),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
@@ -1479,7 +2749,7 @@ class RunProtocolPanel extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 8),
           itemCount: steps.length,
           separatorBuilder: (_, __) =>
-              const Divider(height: 1, indent: 52, endIndent: 16),
+              Divider(height: 1, indent: 52, endIndent: 16, color: t.border),
           itemBuilder: (_, i) => _stepRow(steps[i], i),
         ),
       ),
@@ -1487,6 +2757,7 @@ class RunProtocolPanel extends StatelessWidget {
   }
 
   Widget _stepRow(ProtocolStep step, int i) {
+    final t = themeNotifier.theme;
     final isActive = i == activeStep &&
         (runStatus == ProtocolStatus.running ||
          runStatus == ProtocolStatus.paused);
@@ -1496,12 +2767,12 @@ class RunProtocolPanel extends StatelessWidget {
     final col = isFailed ? const Color(0xFFEF5350)
               : isDone   ? const Color(0xFF26C6A0)
               : isActive ? const Color(0xFF388BFF)
-              :            const Color(0xFFE0E0E0);
+              :            (t.dark ? AppColors.darkMuted : const Color(0xFFE0E0E0));
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
       color: isActive
-          ? const Color(0xFF388BFF).withOpacity(0.05)
+          ? const Color(0xFF388BFF).withOpacity(t.dark ? 0.12 : 0.05)
           : Colors.transparent,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(children: [
@@ -1514,9 +2785,9 @@ class RunProtocolPanel extends StatelessWidget {
             border: Border.all(color: col, width: isActive ? 2 : 1.5),
           ),
           child: Center(child: isDone
-              ? const Icon(Icons.check, size: 14, color: Colors.white)
+              ? Icon(Icons.check, size: 14, color: themeNotifier.dark ? AppColors.darkCard : Colors.white)
               : isFailed
-                  ? const Icon(Icons.close, size: 14, color: Colors.white)
+                  ? Icon(Icons.close, size: 14, color: themeNotifier.dark ? AppColors.darkCard : Colors.white)
                   : Text('${i+1}', style: TextStyle(
                       fontSize: 10, fontWeight: FontWeight.w800, color: col))),
         ),
@@ -1524,15 +2795,15 @@ class RunProtocolPanel extends StatelessWidget {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
             children: [
           Row(children: [
-            Text(step.icon, style: const TextStyle(fontSize: 12)),
+            Icon(step.icon, size: 14, color: t.dark ? AppColors.mint : const Color(0xFF1A3A6E)),
             const SizedBox(width: 5),
             Flexible(child: Text(step.title,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 12, fontWeight: FontWeight.w600,
                   color: isActive ? const Color(0xFF388BFF)
-                       : isDone   ? const Color(0xFF1A1A2E)
-                       :            Colors.black38,
+                       : isDone   ? t.text
+                       :            t.muted,
                 ))),
           ]),
           if (isDone || isActive)
@@ -1560,6 +2831,7 @@ class RunProtocolPanel extends StatelessWidget {
   }
 
   Widget _activeStepCard(BuildContext context) {
+    final t = themeNotifier.theme;
     if (runStatus == ProtocolStatus.idle)      return _idleCard();
     if (runStatus == ProtocolStatus.completed) return _completedCard();
     if (runStatus == ProtocolStatus.aborted)   return _abortedCard();
@@ -1575,7 +2847,7 @@ class RunProtocolPanel extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: t.card,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
             color: const Color(0xFF388BFF).withOpacity(0.25), width: 1.5),
@@ -1587,7 +2859,7 @@ class RunProtocolPanel extends StatelessWidget {
 
         // Header row
         Row(children: [
-          Text(step.icon, style: const TextStyle(fontSize: 28)),
+          Icon(step.icon, size: 28, color: t.dark ? AppColors.mint : const Color(0xFF1A3A6E)),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1600,8 +2872,8 @@ class RunProtocolPanel extends StatelessWidget {
               ],
             ]),
             const SizedBox(height: 6),
-            Text(step.title, style: const TextStyle(fontSize: 18,
-                fontWeight: FontWeight.w700, color: Color(0xFF1A1A2E))),
+            Text(step.title, style: TextStyle(fontSize: 18,
+                fontWeight: FontWeight.w700, color: t.text)),
           ])),
           if (step.durationSeconds > 0)
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -1611,7 +2883,7 @@ class RunProtocolPanel extends StatelessWidget {
                       fontFamily: 'monospace',
                       color: Color(0xFF388BFF))),
               Text('${_fmt(remaining)} remaining',
-                  style: const TextStyle(fontSize: 9, color: Colors.black38)),
+                  style: TextStyle(fontSize: 9, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38)),
             ]),
         ]),
 
@@ -1621,37 +2893,20 @@ class RunProtocolPanel extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-              color: const Color(0xFFF8F9FF),
+              color: themeNotifier.dark ? AppColors.darkElevated : const Color(0xFFF8F9FF),
               borderRadius: BorderRadius.circular(10)),
           child: Text(step.description,
-              style: const TextStyle(fontSize: 12,
-                  color: Colors.black54, height: 1.6)),
+              style: TextStyle(fontSize: 12,
+                  color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black54, height: 1.6)),
         ),
 
-        const SizedBox(height: 14),
-
-        // ── Step animation illustration ──
-        Container(
-          height: 90,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF8F9FF),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFF388BFF).withOpacity(0.1)),
-          ),
-          child: _StepAnimationWidget(
-            stepId: step.id,
-            running: runStatus == ProtocolStatus.running,
-          ),
-        ),
-
-        const SizedBox(height: 14),
+        const SizedBox(height: 20),
 
         // Step progress bar
         if (step.durationSeconds > 0) ...[
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('Step progress', style: TextStyle(fontSize: 10,
-                color: Colors.black38, fontWeight: FontWeight.w600)),
+            Text('Step progress', style: TextStyle(fontSize: 10,
+                color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38, fontWeight: FontWeight.w600)),
             Text('${(frac * 100).toStringAsFixed(0)}%',
                 style: const TextStyle(fontSize: 10,
                     fontWeight: FontWeight.w700, color: Color(0xFF388BFF))),
@@ -1671,11 +2926,11 @@ class RunProtocolPanel extends StatelessWidget {
 
         // QC note
         Row(children: [
-          const Icon(Icons.info_outline, size: 13, color: Colors.black26),
+          Icon(Icons.info_outline, size: 13, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black26),
           const SizedBox(width: 6),
           Expanded(child: Text(_qcNote(step.id),
-              style: const TextStyle(fontSize: 10,
-                  color: Colors.black38, fontStyle: FontStyle.italic))),
+              style: TextStyle(fontSize: 10,
+                  color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38, fontStyle: FontStyle.italic))),
         ]),
       ]),
     );
@@ -1702,11 +2957,11 @@ class RunProtocolPanel extends StatelessWidget {
   };
 
   // ── Idle / Completed / Aborted cards ──────────────────────────────────────
-  Widget _idleCard() => Container(
+  Widget _idleCard() { final t = themeNotifier.theme; return Container(
     width: double.infinity,
-    decoration: BoxDecoration(color: Colors.white,
+    decoration: BoxDecoration(color: t.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black12)),
+        border: Border.all(color: t.border)),
     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       Tooltip(
         message: 'Start Run',
@@ -1727,33 +2982,33 @@ class RunProtocolPanel extends StatelessWidget {
         ),
       ),
       const SizedBox(height: 16),
-      const Text('Ready to Run', style: TextStyle(fontSize: 18,
-          fontWeight: FontWeight.w700, color: Color(0xFF1A1A2E))),
+      Text('Ready to Run', style: TextStyle(fontSize: 18,
+          fontWeight: FontWeight.w700, color: t.text)),
       const SizedBox(height: 8),
-      const Padding(
+      Padding(
         padding: EdgeInsets.symmetric(horizontal: 40),
         child: Text(
-          'Start the TheraMeDx1 Sampler™ protocol for this patient sample.\n'
+          'Start the Lab-on-Chip Monitor protocol for this patient sample.\n'
           'Ensure chip is loaded and all environment sensors are nominal.',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 12, color: Colors.black38, height: 1.6),
+          style: TextStyle(fontSize: 12, color: t.muted, height: 1.6),
         ),
       ),
       const SizedBox(height: 24),
       Wrap(spacing: 8, runSpacing: 6, alignment: WrapAlignment.center,
         children: steps.map((s) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(color: const Color(0xFFF3F3F3),
+          decoration: BoxDecoration(color: t.dark ? AppColors.darkElevated : const Color(0xFFF3F3F3),
               borderRadius: BorderRadius.circular(20)),
-          child: Text('${s.icon} ${s.title}',
-              style: const TextStyle(fontSize: 10, color: Colors.black45)),
+          child: Text(s.title,
+              style: TextStyle(fontSize: 10, color: t.muted)),
         )).toList()),
     ]),
-  );
+  ); }
 
-  Widget _completedCard() => Container(
+  Widget _completedCard() { final t = themeNotifier.theme; return Container(
     width: double.infinity,
-    decoration: BoxDecoration(color: Colors.white,
+    decoration: BoxDecoration(color: t.card,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
             color: const Color(0xFF26C6A0).withOpacity(0.4), width: 1.5)),
@@ -1765,13 +3020,13 @@ class RunProtocolPanel extends StatelessWidget {
         child: const Icon(Icons.check_circle_outline,
             size: 36, color: Color(0xFF26C6A0))),
       const SizedBox(height: 16),
-      const Text('Run Completed', style: TextStyle(fontSize: 18,
-          fontWeight: FontWeight.w700, color: Color(0xFF1A1A2E))),
+      Text('Run Completed', style: TextStyle(fontSize: 18,
+          fontWeight: FontWeight.w700, color: t.text)),
       const SizedBox(height: 8),
       Text(
         'Total runtime: ${_fmt(totalElapsed)}\nAll ${steps.length} steps completed successfully.',
         textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 12, color: Colors.black45, height: 1.6)),
+        style: TextStyle(fontSize: 12, color: t.muted, height: 1.6)),
       const SizedBox(height: 20),
       ElevatedButton.icon(
         onPressed: onViewReport,
@@ -1784,11 +3039,11 @@ class RunProtocolPanel extends StatelessWidget {
         ),
       ),
     ]),
-  );
+  ); }
 
-  Widget _abortedCard() => Container(
+  Widget _abortedCard() { final t = themeNotifier.theme; return Container(
     width: double.infinity,
-    decoration: BoxDecoration(color: Colors.white,
+    decoration: BoxDecoration(color: t.card,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
             color: const Color(0xFFEF5350).withOpacity(0.4), width: 1.5)),
@@ -1800,16 +3055,16 @@ class RunProtocolPanel extends StatelessWidget {
         child: const Icon(Icons.cancel_outlined,
             size: 36, color: Color(0xFFEF5350))),
       const SizedBox(height: 16),
-      const Text('Run Aborted', style: TextStyle(fontSize: 18,
-          fontWeight: FontWeight.w700, color: Color(0xFF1A1A2E))),
+      Text('Run Aborted', style: TextStyle(fontSize: 18,
+          fontWeight: FontWeight.w700, color: t.text)),
       const SizedBox(height: 8),
       Text(
         'Aborted at step ${activeStep + 1}: ${steps[activeStep].title}.\n'
         'Elapsed: ${_fmt(totalElapsed)}',
         textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 12, color: Colors.black45, height: 1.6)),
+        style: TextStyle(fontSize: 12, color: t.muted, height: 1.6)),
     ]),
-  );
+  ); }
 
   // ── Overall progress bar ───────────────────────────────────────────────────
   Widget _overallProgress() {
@@ -1823,14 +3078,14 @@ class RunProtocolPanel extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(color: Colors.white,
+      decoration: BoxDecoration(color: themeNotifier.dark ? AppColors.darkCard : Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.black12)),
+          border: Border.all(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
       child: Column(children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text('Overall progress  ·  $done / ${steps.length} steps',
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
-                  color: Colors.black45)),
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
+                  color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black45)),
           Text('${(frac * 100).toStringAsFixed(0)}%',
               style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
                   color: Color(0xFF388BFF))),
@@ -1903,17 +3158,17 @@ class RunProtocolPanel extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 9),
             decoration: BoxDecoration(
-              color: const Color(0xFFF3F3F3),
+              color: themeNotifier.dark ? AppColors.darkSurface : const Color(0xFFF3F3F3),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.black12),
+              border: Border.all(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12),
             ),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const Icon(Icons.fast_forward_rounded,
-                  size: 14, color: Colors.black38),
+              Icon(Icons.fast_forward_rounded,
+                  size: 14, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38),
               const SizedBox(width: 7),
-              const Text('Skip Step',
+              Text('Skip Step',
                   style: TextStyle(fontSize: 11,
-                      fontWeight: FontWeight.w600, color: Colors.black45)),
+                      fontWeight: FontWeight.w600, color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black45)),
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -1987,7 +3242,7 @@ class RunProtocolPanel extends StatelessWidget {
                 : const Color(0xFFF3F3F3),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-                color: enabled ? color.withOpacity(0.4) : Colors.black12),
+                color: enabled ? color.withOpacity(0.4) : (themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
           ),
           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             Icon(icon, size: 16, color: enabled ? color : Colors.black26),
@@ -2000,542 +3255,6 @@ class RunProtocolPanel extends StatelessWidget {
       ),
     );
   }
-}
-
-// ══════════════════════════════════════════
-//  STEP ANIMATIONS
-// ══════════════════════════════════════════
-
-/// Self-contained animated illustration for the active protocol step.
-/// Pauses automatically when [running] is false.
-class _StepAnimationWidget extends StatefulWidget {
-  final String stepId;
-  final bool running;
-  const _StepAnimationWidget({required this.stepId, required this.running});
-  @override
-  State<_StepAnimationWidget> createState() => _StepAnimationWidgetState();
-}
-
-class _StepAnimationWidgetState extends State<_StepAnimationWidget>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    );
-    if (widget.running) _ctrl.repeat();
-  }
-
-  @override
-  void didUpdateWidget(_StepAnimationWidget old) {
-    super.didUpdateWidget(old);
-    if (old.stepId != widget.stepId) {
-      _ctrl.reset();
-      if (widget.running) _ctrl.repeat();
-    } else if (!old.running && widget.running) {
-      _ctrl.repeat();
-    } else if (old.running && !widget.running) {
-      _ctrl.stop();
-    }
-  }
-
-  @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, __) {
-        final t = _ctrl.value; // 0..1 looping
-        final painter = _painterFor(widget.stepId, t);
-        if (painter == null) return const SizedBox.shrink();
-        return SizedBox(
-          height: 80,
-          child: CustomPaint(
-            painter: painter,
-            size: const Size(double.infinity, 80),
-          ),
-        );
-      },
-    );
-  }
-
-  CustomPainter? _painterFor(String id, double t) => switch (id) {
-    'intake'       => _IntakePainter(t),
-    'dissociation' => _DissociationPainter(t),
-    'droplets'     => _DropletPainter(t),
-    'drug_loading' => _DrugLoadingPainter(t),
-    'incubation'   => _IncubationPainter(t),
-    'imaging'      => _ImagingPainter(t),
-    'analysis'     => _AnalysisPainter(t),
-    'report'       => _ReportPainter(t),
-    _              => null,
-  };
-}
-
-// ── INTAKE: fluid flowing left→right through a channel ─────────────────────
-class _IntakePainter extends CustomPainter {
-  final double t;
-  _IntakePainter(this.t);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width; final h = size.height;
-    final mid = h / 2;
-    final paint = Paint()..style = PaintingStyle.stroke..strokeCap = StrokeCap.round;
-
-    // Channel walls
-    paint.color = const Color(0xFF388BFF).withOpacity(0.18);
-    paint.strokeWidth = 1;
-    canvas.drawLine(Offset(20, mid - 12), Offset(w - 20, mid - 12), paint);
-    canvas.drawLine(Offset(20, mid + 12), Offset(w - 20, mid + 12), paint);
-
-    // Inlet port (left circle)
-    paint.style = PaintingStyle.fill;
-    paint.color = const Color(0xFF388BFF).withOpacity(0.12);
-    canvas.drawCircle(Offset(20, mid), 12, paint);
-    paint.style = PaintingStyle.stroke;
-    paint.color = const Color(0xFF388BFF).withOpacity(0.5);
-    paint.strokeWidth = 1.5;
-    canvas.drawCircle(Offset(20, mid), 12, paint);
-
-    // Outlet port (right circle)
-    paint.style = PaintingStyle.fill;
-    paint.color = const Color(0xFF388BFF).withOpacity(0.08);
-    canvas.drawCircle(Offset(w - 20, mid), 9, paint);
-    paint.style = PaintingStyle.stroke;
-    paint.color = const Color(0xFF388BFF).withOpacity(0.3);
-    canvas.drawCircle(Offset(w - 20, mid), 9, paint);
-
-    // Fluid boluses moving right
-    const numBoluses = 4;
-    paint.style = PaintingStyle.fill;
-    for (int i = 0; i < numBoluses; i++) {
-      final phase = (t + i / numBoluses) % 1.0;
-      final x = 32 + (w - 64) * phase;
-      final alpha = (math.sin(phase * math.pi)).clamp(0.0, 1.0);
-      paint.color = const Color(0xFF388BFF).withOpacity(0.55 * alpha);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: Offset(x, mid), width: 18, height: 14),
-          const Radius.circular(7),
-        ),
-        paint,
-      );
-    }
-
-    // Arrow tip on right
-    paint.style = PaintingStyle.stroke;
-    paint.color = const Color(0xFF388BFF).withOpacity(0.35);
-    paint.strokeWidth = 1.5;
-    final ax = w - 34.0;
-    canvas.drawLine(Offset(ax, mid - 5), Offset(ax + 7, mid), paint);
-    canvas.drawLine(Offset(ax, mid + 5), Offset(ax + 7, mid), paint);
-  }
-
-  @override bool shouldRepaint(_IntakePainter old) => old.t != t;
-}
-
-// ── DISSOCIATION: cluster of dots breaking apart ────────────────────────────
-class _DissociationPainter extends CustomPainter {
-  final double t;
-  _DissociationPainter(this.t);
-
-  static const List<Offset> _startPos = [
-    Offset(0, 0), Offset(10, -8), Offset(-10, -8),
-    Offset(10, 8), Offset(-10, 8), Offset(0, 14), Offset(0, -14),
-  ];
-  static const List<Offset> _endDir = [
-    Offset(0, -18), Offset(22, -18), Offset(-22, -18),
-    Offset(22, 18),  Offset(-22, 18),  Offset(0, 28),  Offset(0, -28),
-  ];
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2; final cy = size.height / 2;
-    // ease in
-    final ease = t < 0.5
-        ? 2 * t * t
-        : 1 - math.pow(-2 * t + 2, 2) / 2;
-
-    final paint = Paint()..style = PaintingStyle.fill;
-
-    for (int i = 0; i < _startPos.length; i++) {
-      final s = _startPos[i]; final d = _endDir[i];
-      final x = cx + s.dx + d.dx * ease;
-      final y = cy + s.dy + d.dy * ease;
-      final r = 5.5 - 1.5 * ease;
-      final alpha = 1.0 - ease * 0.3;
-      paint.color = i == 0
-          ? const Color(0xFF388BFF).withOpacity(0.85 * alpha)
-          : const Color(0xFF26C6A0).withOpacity(0.7 * alpha);
-      canvas.drawCircle(Offset(x, y), r, paint);
-    }
-
-    // Dashed ring showing original cluster boundary, fading out
-    final ringPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = const Color(0xFF388BFF).withOpacity((1 - ease) * 0.3);
-    canvas.drawCircle(Offset(cx, cy), 20, ringPaint);
-  }
-
-  @override bool shouldRepaint(_DissociationPainter old) => old.t != t;
-}
-
-// ── DROPLETS: small circles encapsulating dots, flowing right ───────────────
-class _DropletPainter extends CustomPainter {
-  final double t;
-  _DropletPainter(this.t);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width; final h = size.height;
-    final paint = Paint();
-
-    // Track (thin line)
-    paint.style = PaintingStyle.stroke;
-    paint.strokeWidth = 1;
-    paint.color = const Color(0xFF388BFF).withOpacity(0.12);
-    canvas.drawLine(Offset(10, h / 2), Offset(w - 10, h / 2), paint);
-
-    // 5 droplets at staggered positions
-    const n = 5;
-    for (int i = 0; i < n; i++) {
-      final phase = (t + i / n) % 1.0;
-      final x = 14 + (w - 28) * phase;
-      final y = h / 2;
-      final alpha = math.sin(phase * math.pi).clamp(0.0, 1.0);
-
-      // Outer droplet shell
-      paint.style = PaintingStyle.fill;
-      paint.color = const Color(0xFF388BFF).withOpacity(0.13 * alpha);
-      canvas.drawCircle(Offset(x, y), 11, paint);
-      paint.style = PaintingStyle.stroke;
-      paint.strokeWidth = 1.2;
-      paint.color = const Color(0xFF388BFF).withOpacity(0.5 * alpha);
-      canvas.drawCircle(Offset(x, y), 11, paint);
-
-      // Inner cell dot
-      paint.style = PaintingStyle.fill;
-      paint.color = const Color(0xFF26C6A0).withOpacity(0.8 * alpha);
-      canvas.drawCircle(Offset(x, y), 4, paint);
-    }
-  }
-
-  @override bool shouldRepaint(_DropletPainter old) => old.t != t;
-}
-
-// ── DRUG LOADING: wells filling up column by column ─────────────────────────
-class _DrugLoadingPainter extends CustomPainter {
-  final double t;
-  _DrugLoadingPainter(this.t);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width; final h = size.height;
-    const cols = 6; const rows = 2;
-    const wellW = 28.0; const wellH = 22.0; const gap = 6.0;
-
-    final totalW = cols * wellW + (cols - 1) * gap;
-    final totalH = rows * wellH + gap;
-    final ox = (w - totalW) / 2; final oy = (h - totalH) / 2;
-
-    final bgPaint  = Paint()..style = PaintingStyle.fill;
-    final rimPaint = Paint()
-      ..style = PaintingStyle.stroke..strokeWidth = 1.2;
-
-    // Drug colors cycling
-    const drugColors = [
-      Color(0xFF388BFF), Color(0xFF26C6A0), Color(0xFFFFA726),
-      Color(0xFFEF5350), Color(0xFFAB47BC), Color(0xFF26C6DA),
-    ];
-
-    for (int row = 0; row < rows; row++) {
-      for (int col = 0; col < cols; col++) {
-        final wx = ox + col * (wellW + gap);
-        final wy = oy + row * (wellH + gap);
-        final rect = RRect.fromRectAndRadius(
-          Rect.fromLTWH(wx, wy, wellW, wellH),
-          const Radius.circular(5),
-        );
-
-        // Fill threshold: animate by column then row
-        final wellIndex = row * cols + col;
-        final fillPhase = (t * (rows * cols) - wellIndex).clamp(0.0, 1.0);
-
-        bgPaint.color = const Color(0xFFF3F3F3);
-        canvas.drawRRect(rect, bgPaint);
-
-        if (fillPhase > 0) {
-          final col0 = drugColors[col % drugColors.length];
-          bgPaint.color = col0.withOpacity(0.25 * fillPhase);
-          // Clip fill to well
-          canvas.save();
-          canvas.clipRRect(rect);
-          final fillH = wellH * fillPhase;
-          canvas.drawRect(
-            Rect.fromLTWH(wx, wy + wellH - fillH, wellW, fillH),
-            Paint()..color = col0.withOpacity(0.35 * fillPhase),
-          );
-          canvas.restore();
-        }
-
-        rimPaint.color = const Color(0xFF388BFF).withOpacity(0.25);
-        canvas.drawRRect(rect, rimPaint);
-      }
-    }
-  }
-
-  @override bool shouldRepaint(_DrugLoadingPainter old) => old.t != t;
-}
-
-// ── INCUBATION: concentric pulsing rings (heat / temperature waves) ─────────
-class _IncubationPainter extends CustomPainter {
-  final double t;
-  _IncubationPainter(this.t);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2; final cy = size.height / 2;
-
-    // Central cell cluster dot
-    final dotPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = const Color(0xFFFFA726).withOpacity(0.9);
-    canvas.drawCircle(Offset(cx, cy), 7, dotPaint);
-
-    // 3 ripple rings expanding outward
-    final ringPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-
-    const numRings = 3;
-    for (int i = 0; i < numRings; i++) {
-      final phase = (t + i / numRings) % 1.0;
-      final r = 10 + phase * 32;
-      final alpha = (1 - phase) * 0.6;
-      ringPaint.color = const Color(0xFFFFA726).withOpacity(alpha);
-      canvas.drawCircle(Offset(cx, cy), r, ringPaint);
-    }
-
-    // Temp label tick marks
-    final linePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = const Color(0xFFFFA726).withOpacity(0.2);
-    for (int i = 0; i < 6; i++) {
-      final angle = i * math.pi / 3;
-      final r1 = 48.0; final r2 = 55.0;
-      canvas.drawLine(
-        Offset(cx + math.cos(angle) * r1, cy + math.sin(angle) * r1),
-        Offset(cx + math.cos(angle) * r2, cy + math.sin(angle) * r2),
-        linePaint,
-      );
-    }
-  }
-
-  @override bool shouldRepaint(_IncubationPainter old) => old.t != t;
-}
-
-// ── IMAGING: scanning beam sweeping across a grid of wells ──────────────────
-class _ImagingPainter extends CustomPainter {
-  final double t;
-  _ImagingPainter(this.t);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width; final h = size.height;
-    const cols = 5; const rows = 2;
-    const cellW = 30.0; const cellH = 22.0; const gap = 5.0;
-
-    final totalW = cols * cellW + (cols - 1) * gap;
-    final totalH = rows * cellH + gap;
-    final ox = (w - totalW) / 2; final oy = (h - totalH) / 2;
-
-    // Total wells for scan progress
-    final totalCells = cols * rows;
-    final scanned = (t * totalCells).floor();
-
-    final bgPaint  = Paint()..style = PaintingStyle.fill;
-    final rimPaint = Paint()
-      ..style = PaintingStyle.stroke..strokeWidth = 1.2;
-
-    for (int row = 0; row < rows; row++) {
-      for (int col = 0; col < cols; col++) {
-        final index = row * cols + col;
-        final cx = ox + col * (cellW + gap) + cellW / 2;
-        final cy = oy + row * (cellH + gap) + cellH / 2;
-        final rect = RRect.fromRectAndRadius(
-          Rect.fromLTWH(cx - cellW / 2, cy - cellH / 2, cellW, cellH),
-          const Radius.circular(4),
-        );
-
-        if (index < scanned) {
-          // Scanned: green glow
-          bgPaint.color = const Color(0xFF26C6A0).withOpacity(0.15);
-          canvas.drawRRect(rect, bgPaint);
-          rimPaint.color = const Color(0xFF26C6A0).withOpacity(0.5);
-          // Draw a tiny cell dot
-          canvas.drawCircle(Offset(cx, cy), 3,
-              Paint()..color = const Color(0xFF26C6A0).withOpacity(0.6));
-        } else if (index == scanned) {
-          // Currently being scanned: bright highlight
-          bgPaint.color = const Color(0xFF388BFF).withOpacity(0.18);
-          canvas.drawRRect(rect, bgPaint);
-          rimPaint.color = const Color(0xFF388BFF).withOpacity(0.8);
-          // Scan line animation
-          final subPhase = (t * totalCells) - scanned;
-          final lineY = (cy - cellH / 2) + cellH * subPhase;
-          canvas.drawLine(
-            Offset(cx - cellW / 2 + 2, lineY),
-            Offset(cx + cellW / 2 - 2, lineY),
-            Paint()
-              ..color = const Color(0xFF388BFF).withOpacity(0.7)
-              ..strokeWidth = 1.5,
-          );
-        } else {
-          bgPaint.color = const Color(0xFFF3F3F3);
-          canvas.drawRRect(rect, bgPaint);
-          rimPaint.color = const Color(0xFF388BFF).withOpacity(0.15);
-        }
-        canvas.drawRRect(rect, rimPaint);
-      }
-    }
-  }
-
-  @override bool shouldRepaint(_ImagingPainter old) => old.t != t;
-}
-
-// ── ANALYSIS: bar chart bars animating up ───────────────────────────────────
-class _AnalysisPainter extends CustomPainter {
-  final double t;
-  _AnalysisPainter(this.t);
-
-  static const List<double> _targets = [0.55, 0.9, 0.4, 0.75, 0.65, 0.85, 0.5];
-  static const List<Color> _barColors = [
-    Color(0xFF388BFF), Color(0xFF26C6A0), Color(0xFF388BFF),
-    Color(0xFF26C6A0), Color(0xFF388BFF), Color(0xFF26C6A0), Color(0xFF388BFF),
-  ];
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width; final h = size.height;
-    final n = _targets.length;
-    const barW = 18.0; const gap = 8.0;
-    final totalW = n * barW + (n - 1) * gap;
-    final ox = (w - totalW) / 2; final baseY = h - 8.0;
-    final maxH = h - 20;
-
-    final paint = Paint()..style = PaintingStyle.fill;
-    final axisPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = const Color(0xFF388BFF).withOpacity(0.15);
-    canvas.drawLine(Offset(ox - 4, baseY), Offset(ox + totalW + 4, baseY), axisPaint);
-
-    for (int i = 0; i < n; i++) {
-      // Stagger bar appearance
-      final delay = i / n * 0.5;
-      final localT = ((t - delay) / 0.6).clamp(0.0, 1.0);
-      // Ease out
-      final ease = 1 - math.pow(1 - localT, 3);
-      final bh = _targets[i] * maxH * ease;
-      final x = ox + i * (barW + gap);
-
-      paint.color = _barColors[i % _barColors.length].withOpacity(0.75);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(x, baseY - bh, barW, bh),
-          const Radius.circular(3),
-        ),
-        paint,
-      );
-
-      // Highlight top
-      if (i == 1 || i == 5) {
-        paint.color = const Color(0xFF26C6A0).withOpacity(0.5);
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(x, baseY - bh, barW, 3),
-            const Radius.circular(2),
-          ),
-          paint,
-        );
-      }
-    }
-  }
-
-  @override bool shouldRepaint(_AnalysisPainter old) => old.t != t;
-}
-
-// ── REPORT: checkmark drawing itself ────────────────────────────────────────
-class _ReportPainter extends CustomPainter {
-  final double t;
-  _ReportPainter(this.t);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2; final cy = size.height / 2;
-
-    // Document outline
-    final docPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
-      ..color = const Color(0xFF26C6A0).withOpacity(0.3);
-    const dw = 44.0; const dh = 54.0;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(center: Offset(cx, cy), width: dw, height: dh),
-        const Radius.circular(5),
-      ),
-      docPaint,
-    );
-
-    // Horizontal lines (text placeholders)
-    final linePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF26C6A0).withOpacity(0.2);
-    for (int i = 0; i < 3; i++) {
-      final lx = cx - 14 + (i == 2 ? 6 : 0);
-      final rx = cx + (i == 2 ? 2 : 14);
-      final ly = cy - 10 + i * 10.0;
-      canvas.drawLine(Offset(lx, ly), Offset(rx, ly), linePaint);
-    }
-
-    // Animated checkmark
-    final checkPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..color = const Color(0xFF26C6A0).withOpacity(0.9);
-
-    // Checkmark path: two segments
-    // segment 1: small down-left stroke (0..0.4)
-    // segment 2: long up-right stroke (0.4..1.0)
-    final p1 = Offset(cx - 14, cy + 16);
-    final p2 = Offset(cx - 6,  cy + 25);
-    final p3 = Offset(cx + 14, cy + 5);
-
-    if (t < 0.4) {
-      final s = t / 0.4;
-      canvas.drawLine(p1, Offset.lerp(p1, p2, s)!, checkPaint);
-    } else {
-      canvas.drawLine(p1, p2, checkPaint);
-      final s = (t - 0.4) / 0.6;
-      canvas.drawLine(p2, Offset.lerp(p2, p3, s)!, checkPaint);
-    }
-  }
-
-  @override bool shouldRepaint(_ReportPainter old) => old.t != t;
 }
 
 class _PulseDot extends StatefulWidget {
@@ -2609,6 +3328,8 @@ class OncologyPanel extends StatefulWidget {
   final bool unlocked;
   final ProtocolStatus runStatus;
   final String activeStepId;
+  final Map<String, String> patient;
+  final String technician;
   final VoidCallback onGoToProtocol;
 
   const OncologyPanel({
@@ -2616,6 +3337,8 @@ class OncologyPanel extends StatefulWidget {
     required this.unlocked,
     required this.runStatus,
     required this.activeStepId,
+    required this.patient,
+    required this.technician,
     required this.onGoToProtocol,
   });
   @override
@@ -2628,9 +3351,10 @@ class _OncologyPanelState extends State<OncologyPanel> {
   String _bestDrug = '', _bestCategory = '';
   double _bestEfficacy = 0;
   bool _loading = false, _connected = false;
+  bool _exportingReport = false;
   String _status = 'Idle';
   int? _selectedWell;
-  final String _url = 'http://localhost:8081/api/analyze';
+  final String _url = 'https://therame-simulator-production-8370.up.railway.app/api/analyze';
 
   @override
   void initState() { super.initState(); if (widget.unlocked) _analyze(); }
@@ -2643,9 +3367,11 @@ class _OncologyPanelState extends State<OncologyPanel> {
   }
 
   Future<void> _analyze() async {
+    if (!mounted) return;
     setState(() { _loading = true; _status = 'Analysing...'; });
     try {
-      final r = await http.get(Uri.parse(_url)).timeout(const Duration(seconds: 30));
+      final r = await http.get(Uri.parse(_url)).timeout(const Duration(seconds: 60));
+      if (!mounted) return;
       if (r.statusCode == 200) {
         final d = json.decode(r.body);
         setState(() {
@@ -2657,9 +3383,20 @@ class _OncologyPanelState extends State<OncologyPanel> {
           _connected = true; _status = 'Complete'; _loading = false;
           _selectedWell ??= _ranked.isNotEmpty ? _ranked.first.wellIndex : 0;
         });
+        // Save to session history
+        SessionHistory.save(PatientSession(
+          patientId:    widget.patient['id'] ?? '—',
+          diagnosis:    widget.patient['diagnosis'] ?? '—',
+          bestDrug:     d['best_drug'],
+          bestCategory: d['best_category'],
+          bestEfficacy: (d['best_efficacy'] as num).toDouble(),
+          wellCount:    (d['wells'] as List).length,
+          timestamp:    DateTime.now(),
+        ));
       }
-    } catch (_) {
-      setState(() { _connected = false; _status = 'Disconnected'; _loading = false; });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _connected = false; _status = 'Error: $e'; _loading = false; });
     }
   }
 
@@ -2673,6 +3410,7 @@ class _OncologyPanelState extends State<OncologyPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final t = themeNotifier.theme;
     // Show gate if protocol hasn't reached imaging yet
     if (!widget.unlocked) return _gateScreen();
 
@@ -2699,13 +3437,51 @@ class _OncologyPanelState extends State<OncologyPanel> {
           onTap: _loading ? () {} : _analyze,
         )),
         const SizedBox(width: 12),
-        Expanded(child: Align(alignment: Alignment.centerRight,
+        Expanded(child: appButton(
+          icon: _exportingReport ? Icons.hourglass_top_rounded : Icons.picture_as_pdf_outlined,
+          label: _exportingReport ? 'Generating…' : 'Export Report',
+          color: const Color(0xFF388BFF),
+          onTap: (_exportingReport || _bestDrug.isEmpty) ? () {} : () => _showReport(context),
+        )),
+        const SizedBox(width: 12),
+        Expanded(child: appButton(
+          icon: Icons.history_rounded,
+          label: 'History',
+          color: const Color(0xFF9C27B0),
+          onTap: () => _showHistory(context),
+        )),
+        const SizedBox(width: 12),
+        Align(alignment: Alignment.centerRight,
             child: statusBadge(_connected, _status,
                 onTap: _connected ? null
-                    : () => launchDocker(context, 'cell-analyzer', 8081)))),
+                    : () => Platform.isMacOS ? launchDocker(context, 'cell-analyzer', 8081) : _analyze())),
       ]),
     ]),
   );
+  }
+
+  void _showHistory(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (_) => SessionHistoryDialog(patientId: widget.patient['id'] ?? ''),
+    );
+  }
+
+  void _showReport(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (_) => OncologyReportDialog(
+        patient: widget.patient,
+        technician: widget.technician,
+        wells: _wells,
+        ranked: _ranked,
+        bestDrug: _bestDrug,
+        bestCategory: _bestCategory,
+        bestEfficacy: _bestEfficacy,
+      ),
+    );
   }
 
   // ── Gate screen shown while protocol hasn't reached imaging ───────────────
@@ -2739,9 +3515,9 @@ class _OncologyPanelState extends State<OncologyPanel> {
         child: Container(
           padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: themeNotifier.dark ? AppColors.darkCard : Colors.white,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.black12),
+            border: Border.all(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12),
           ),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Container(
@@ -2753,26 +3529,26 @@ class _OncologyPanelState extends State<OncologyPanel> {
               child: Icon(icon, size: 38, color: const Color(0xFF388BFF)),
             ),
             const SizedBox(height: 20),
-            Text(title, style: const TextStyle(fontSize: 20,
-                fontWeight: FontWeight.w700, color: Color(0xFF1A1A2E))),
+            Text(title, style: TextStyle(fontSize: 20,
+                fontWeight: FontWeight.w700, color: themeNotifier.dark ? AppColors.darkText : const Color(0xFF1A1A2E))),
             const SizedBox(height: 10),
             Text(subtitle, textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 12,
-                    color: Colors.black45, height: 1.65)),
+                style: TextStyle(fontSize: 12,
+                    color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black45, height: 1.65)),
             const SizedBox(height: 28),
 
             // Mini step pills showing protocol progress
             if (isRunning) ...[
-              const Text('Protocol progress',
+              Text('Protocol progress',
                   style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
-                      color: Colors.black38)),
+                      color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38)),
               const SizedBox(height: 12),
               Wrap(spacing: 6, runSpacing: 6, alignment: WrapAlignment.center,
                 children: [
                   '🧫 Intake', '⚗️ Dissociation', '💧 Droplets',
                   '💊 Drug Loading', '🌡 Incubation', '🔬 Imaging',
                 ].asMap().entries.map((e) {
-                  const unlockedAt = {'imaging', 'analysis', 'report'};
+                  const unlockedAt = {'imaging', 'analysis'};
                   final stepIds = ['intake','dissociation','droplets',
                                    'drug_loading','incubation','imaging'];
                   final sid     = stepIds[e.key];
@@ -2826,11 +3602,11 @@ class _OncologyPanelState extends State<OncologyPanel> {
                   Icon(isIdle
                       ? Icons.play_arrow_rounded
                       : Icons.arrow_forward_rounded,
-                      size: 16, color: Colors.white),
+                      size: 16, color: themeNotifier.dark ? AppColors.darkCard : Colors.white),
                   const SizedBox(width: 8),
-                  Text(btnLabel, style: const TextStyle(
+                  Text(btnLabel, style: TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w700,
-                      color: Colors.white)),
+                      color: themeNotifier.dark ? AppColors.darkCard : Colors.white)),
                 ]),
               ),
             ),
@@ -2850,15 +3626,16 @@ class _OncologyPanelState extends State<OncologyPanel> {
   }
 
   Widget _recommendationBanner() {
+    final t = themeNotifier.theme;
     if (_bestDrug.isEmpty) return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white,
-          borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.black12)),
-      child: const Row(children: [
-        Icon(Icons.science_outlined, color: Colors.black26, size: 20),
-        SizedBox(width: 10),
+      decoration: BoxDecoration(color: t.card,
+          borderRadius: BorderRadius.circular(14), border: Border.all(color: t.border)),
+      child: Row(children: [
+        Icon(Icons.science_outlined, color: t.muted, size: 20),
+        const SizedBox(width: 10),
         Text('Run an analysis to get a treatment recommendation',
-            style: TextStyle(color: Colors.black38, fontSize: 13)),
+            style: TextStyle(color: t.muted, fontSize: 13)),
       ]),
     );
     return Container(
@@ -2873,15 +3650,15 @@ class _OncologyPanelState extends State<OncologyPanel> {
         Container(padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(color: Colors.white.withOpacity(0.15),
               borderRadius: BorderRadius.circular(10)),
-          child: const Icon(Icons.recommend_rounded, color: Colors.white, size: 24)),
+          child: Icon(Icons.recommend_rounded, color: themeNotifier.dark ? AppColors.darkCard : Colors.white, size: 24)),
         const SizedBox(width: 16),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('RECOMMENDED TREATMENT',
               style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
                   color: Colors.white60, letterSpacing: 1.2)),
           const SizedBox(height: 2),
-          Text(_bestDrug, style: const TextStyle(fontSize: 20,
-              fontWeight: FontWeight.w800, color: Colors.white)),
+          Text(_bestDrug, style: TextStyle(fontSize: 20,
+              fontWeight: FontWeight.w800, color: themeNotifier.dark ? AppColors.darkCard : Colors.white)),
           Text('$_bestCategory  ·  ${_bestEfficacy.toStringAsFixed(1)}% tumour cell kill rate',
               style: const TextStyle(fontSize: 12, color: Colors.white70)),
         ])),
@@ -2891,7 +3668,7 @@ class _OncologyPanelState extends State<OncologyPanel> {
               borderRadius: BorderRadius.circular(10)),
           child: Column(children: [
             Text('${_bestEfficacy.toStringAsFixed(0)}%',
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: themeNotifier.dark ? AppColors.darkCard : Colors.white)),
             const Text('efficacy', style: TextStyle(fontSize: 10, color: Colors.white60)),
           ]),
         ),
@@ -2906,14 +3683,14 @@ class _OncologyPanelState extends State<OncologyPanel> {
     final col = w != null ? _wellColor(w.efficacy) : Colors.black26;
     return Container(
       width: double.infinity,
-      decoration: BoxDecoration(color: Colors.white,
+      decoration: BoxDecoration(color: themeNotifier.dark ? AppColors.darkCard : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: w != null ? col.withOpacity(0.4) : Colors.black12)),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: w == null
-            ? const Center(child: Text('Run analysis to see frames',
-                style: TextStyle(color: Colors.black26, fontSize: 13)))
+            ? Center(child: Text('Run analysis to see frames',
+                style: TextStyle(color: themeNotifier.dark ? AppColors.darkMuted : Colors.black26, fontSize: 13)))
             : Stack(fit: StackFit.expand, children: [
                 w.framePng.isNotEmpty
                     ? Image.memory(base64Decode(w.framePng), fit: BoxFit.contain)
@@ -2928,8 +3705,8 @@ class _OncologyPanelState extends State<OncologyPanel> {
                       Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(color: col, borderRadius: BorderRadius.circular(6)),
                         child: Text('Well ${w.wellIndex + 1}',
-                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
-                                color: Colors.white))),
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                                color: themeNotifier.dark ? AppColors.darkCard : Colors.white))),
                       const SizedBox(width: 10),
                       Expanded(child: Text(w.drug, style: const TextStyle(fontSize: 15,
                           fontWeight: FontWeight.w700, color: Colors.white))),
@@ -2980,7 +3757,7 @@ class _OncologyPanelState extends State<OncologyPanel> {
   Widget _wellStrip() => SizedBox(
     height: 72,
     child: _wells.isEmpty
-        ? const Center(child: Text('No data', style: TextStyle(color: Colors.black26)))
+        ? Center(child: Text('No data', style: TextStyle(color: themeNotifier.dark ? AppColors.darkMuted : Colors.black26)))
         : ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: _wells.length,
@@ -3009,7 +3786,7 @@ class _OncologyPanelState extends State<OncologyPanel> {
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: col)),
             const SizedBox(height: 2),
             Text(w.drug.length > 7 ? '${w.drug.substring(0, 7)}…' : w.drug,
-                style: const TextStyle(fontSize: 8, color: Colors.black45),
+                style: TextStyle(fontSize: 8, color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black45),
                 textAlign: TextAlign.center),
           ])),
           if (isBest) Positioned(top: 3, right: 3,
@@ -3019,26 +3796,27 @@ class _OncologyPanelState extends State<OncologyPanel> {
     );
   }
 
-  Widget _rankedSidebar() => Container(
+  Widget _rankedSidebar() { final t = themeNotifier.theme; return Container(
     width: double.infinity,
     padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(color: Colors.white,
-        borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.black12)),
+    decoration: BoxDecoration(color: t.card,
+        borderRadius: BorderRadius.circular(16), border: Border.all(color: t.border)),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text('Top 5 Treatments',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1A1A2E))),
-      const Text('by tumour cell kill rate',
-          style: TextStyle(fontSize: 10, color: Colors.black38)),
+      Text('Top 5 Treatments',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: t.text)),
+      Text('by tumour cell kill rate',
+          style: TextStyle(fontSize: 10, color: t.muted)),
       const SizedBox(height: 12),
       if (_ranked.isEmpty)
-        const Padding(padding: EdgeInsets.symmetric(vertical: 20),
-            child: Center(child: Text('...', style: TextStyle(color: Colors.black26)))),
+        Padding(padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Center(child: Text('...', style: TextStyle(color: t.muted)))),
       Expanded(child: Column(children: _ranked.isEmpty ? []
           : _ranked.map((r) => Expanded(child: _rankedRow(r))).toList())),
     ]),
-  );
+  ); }
 
   Widget _rankedRow(RankedEntry r) {
+    final t = themeNotifier.theme;
     final col = _wellColor(r.efficacy);
     final isTop = r.rank == 1;
     final isSel = _selectedWell == r.wellIndex;
@@ -3067,14 +3845,1631 @@ class _OncologyPanelState extends State<OncologyPanel> {
           const SizedBox(width: 8),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text(r.drug, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                color: Color(0xFF1A1A2E)), overflow: TextOverflow.ellipsis),
-            Text(r.category, style: const TextStyle(fontSize: 9, color: Colors.black38),
+            Text(r.drug, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                color: t.text), overflow: TextOverflow.ellipsis),
+            Text(r.category, style: TextStyle(fontSize: 9, color: t.muted),
                 overflow: TextOverflow.ellipsis),
           ])),
           Text('${r.efficacy.toStringAsFixed(0)}%',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: col)),
         ]),
+      ),
+    );
+  }
+}
+
+// ── Oncology Report Dialog ───────────────────────────────────────────────────
+class OncologyReportDialog extends StatefulWidget {
+  final Map<String, String> patient;
+  final String technician;
+  final List<WellData> wells;
+  final List<RankedEntry> ranked;
+  final String bestDrug, bestCategory;
+  final double bestEfficacy;
+
+  const OncologyReportDialog({
+    super.key,
+    required this.patient,
+    required this.technician,
+    required this.wells,
+    required this.ranked,
+    required this.bestDrug,
+    required this.bestCategory,
+    required this.bestEfficacy,
+  });
+
+  @override
+  State<OncologyReportDialog> createState() => _OncologyReportDialogState();
+}
+
+class _OncologyReportDialogState extends State<OncologyReportDialog> {
+  bool _exporting = false;
+  String? _exportedPath;
+
+  String get _dateStr {
+    final n = DateTime.now();
+    return '${n.day.toString().padLeft(2,'0')}/${n.month.toString().padLeft(2,'0')}/${n.year}'
+        '  ${n.hour.toString().padLeft(2,'0')}:${n.minute.toString().padLeft(2,'0')}';
+  }
+
+  Color _efficacyColor(double e) {
+    if (e >= 75) return const Color(0xFF1B8A5A);
+    if (e >= 60) return const Color(0xFF26C6A0);
+    if (e >= 45) return const Color(0xFFFFA726);
+    if (e >= 30) return const Color(0xFFFF7043);
+    return const Color(0xFFEF5350);
+  }
+
+  // ── PDF export ─────────────────────────────────────────────────────────────
+  Future<void> _exportPdf() async {
+    setState(() { _exporting = true; _exportedPath = null; });
+    try {
+      final now = DateTime.now();
+      const navy  = PdfColor.fromInt(0xFF1A1A2E);
+      const green = PdfColor.fromInt(0xFF1B8A5A);
+      const mint  = PdfColor.fromInt(0xFF26C6A0);
+      const blue  = PdfColor.fromInt(0xFF388BFF);
+      const amber = PdfColor.fromInt(0xFFFFA726);
+      const red   = PdfColor.fromInt(0xFFEF5350);
+      const grey  = PdfColor.fromInt(0xFF9E9E9E);
+      const lightBg = PdfColor.fromInt(0xFFF8F9FF);
+      const rowAlt  = PdfColor.fromInt(0xFFF3F3F3);
+
+      final ttRegular = await PdfGoogleFonts.interRegular();
+      final ttBold    = await PdfGoogleFonts.interBold();
+      final ttMono    = await PdfGoogleFonts.sourceCodeProRegular();
+
+      pw.TextStyle ts(double size, {pw.Font? font, PdfColor? color, double? spacing}) =>
+          pw.TextStyle(font: font ?? ttRegular, fontSize: size,
+              color: color ?? navy, letterSpacing: spacing);
+
+      PdfColor efficacyPdf(double e) {
+        if (e >= 75) return green;
+        if (e >= 60) return mint;
+        if (e >= 45) return amber;
+        if (e >= 30) return const PdfColor.fromInt(0xFFFF7043);
+        return red;
+      }
+
+      final pdf = pw.Document(
+        title: 'Oncology Results Report — ${widget.patient['id']}',
+        author: widget.technician,
+        creator: 'TheraMeDx1 Sampler',
+      );
+
+      // Pre-encode well images that are available
+      final topWells = widget.ranked.take(5).toList();
+
+      pdf.addPage(pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.symmetric(horizontal: 40, vertical: 36),
+        build: (ctx) => [
+
+          // ══ HEADER ══════════════════════════════════════════════════════
+          pw.Container(
+            padding: const pw.EdgeInsets.all(18),
+            decoration: pw.BoxDecoration(
+                color: navy, borderRadius: pw.BorderRadius.circular(10)),
+            child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+              pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                pw.Text('Oncology Results Report',
+                    style: ts(16, font: ttBold, color: PdfColors.white)),
+                pw.SizedBox(height: 3),
+                pw.Text('TheraMeDx1 Sampler™  —  Cell Viability & Drug Efficacy Analysis',
+                    style: ts(9, color: PdfColor.fromInt(0x88FFFFFF))),
+              ]),
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: pw.BoxDecoration(
+                  color: green.shade(0.25),
+                  borderRadius: pw.BorderRadius.circular(20),
+                  border: pw.Border.all(color: green),
+                ),
+                child: pw.Text('ANALYSIS COMPLETE',
+                    style: ts(8, font: ttBold, color: green)),
+              ),
+            ]),
+          ),
+
+          pw.SizedBox(height: 14),
+
+          // Meta chips
+          pw.Row(children: [
+            _pdfChip(ttRegular, 'Date: $_dateStr', 9),
+            pw.SizedBox(width: 8),
+            _pdfChip(ttRegular, 'Analyst: ${widget.technician}', 9),
+            pw.SizedBox(width: 8),
+            _pdfChip(ttRegular, '${widget.wells.length} wells analysed', 9),
+          ]),
+
+          pw.SizedBox(height: 18),
+
+          // ══ PATIENT ══════════════════════════════════════════════════════
+          _pdfSectionLabel(ttBold, 'Patient', blue),
+          pw.SizedBox(height: 8),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(14),
+            decoration: pw.BoxDecoration(color: lightBg,
+                borderRadius: pw.BorderRadius.circular(8),
+                border: pw.Border.all(color: PdfColor.fromInt(0xFFE0E0E0))),
+            child: pw.Row(children: [
+              _pdfKV(ttRegular, ttBold, 'Patient ID', widget.patient['id'] ?? '—'),
+              pw.SizedBox(width: 24),
+              _pdfKV(ttRegular, ttBold, 'Age', widget.patient['age'] ?? '—'),
+              pw.SizedBox(width: 24),
+              pw.Expanded(child: _pdfKV(ttRegular, ttBold,
+                  'Diagnosis', widget.patient['diagnosis'] ?? '—')),
+            ]),
+          ),
+
+          pw.SizedBox(height: 18),
+
+          // ══ RECOMMENDATION ════════════════════════════════════════════════
+          _pdfSectionLabel(ttBold, 'Treatment Recommendation', blue),
+          pw.SizedBox(height: 8),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(18),
+            decoration: pw.BoxDecoration(
+              gradient: const pw.LinearGradient(
+                  colors: [PdfColor.fromInt(0xFF0D4F35), PdfColor.fromInt(0xFF1B8A5A)]),
+              borderRadius: pw.BorderRadius.circular(10),
+            ),
+            child: pw.Row(children: [
+              pw.Expanded(child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                pw.Text('RECOMMENDED TREATMENT',
+                    style: ts(8, font: ttBold,
+                        color: PdfColor.fromInt(0x99FFFFFF), spacing: 1.2)),
+                pw.SizedBox(height: 4),
+                pw.Text(widget.bestDrug,
+                    style: ts(20, font: ttBold, color: PdfColors.white)),
+                pw.SizedBox(height: 2),
+                pw.Text('${widget.bestCategory}  ·  Tumour cell kill rate',
+                    style: ts(10, color: PdfColor.fromInt(0xCCFFFFFF))),
+              ])),
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                decoration: pw.BoxDecoration(
+                  color: PdfColor.fromInt(0x33FFFFFF),
+                  borderRadius: pw.BorderRadius.circular(10),
+                ),
+                child: pw.Column(children: [
+                  pw.Text('${widget.bestEfficacy.toStringAsFixed(0)}%',
+                      style: ts(26, font: ttBold, color: PdfColors.white)),
+                  pw.Text('efficacy',
+                      style: ts(9, color: PdfColor.fromInt(0xAAFFFFFF))),
+                ]),
+              ),
+            ]),
+          ),
+
+          pw.SizedBox(height: 18),
+
+          // ══ SUMMARY STATS ═════════════════════════════════════════════════
+          _pdfSectionLabel(ttBold, 'Analysis Summary', blue),
+          pw.SizedBox(height: 8),
+          pw.Row(children: [
+            _pdfStatCard(ttRegular, ttBold, 'Wells Tested',
+                '${widget.wells.length}', blue),
+            pw.SizedBox(width: 8),
+            _pdfStatCard(ttRegular, ttBold, 'Best Efficacy',
+                '${widget.bestEfficacy.toStringAsFixed(1)}%', green),
+            pw.SizedBox(width: 8),
+            _pdfStatCard(ttRegular, ttBold, 'Avg Efficacy',
+                widget.wells.isEmpty ? '—'
+                : '${(widget.wells.fold(0.0,(a,b)=>a+b.efficacy)/widget.wells.length).toStringAsFixed(1)}%',
+                blue),
+            pw.SizedBox(width: 8),
+            _pdfStatCard(ttRegular, ttBold, 'Avg Viability',
+                widget.wells.isEmpty ? '—'
+                : '${(widget.wells.fold(0.0,(a,b)=>a+b.viability)/widget.wells.length).toStringAsFixed(1)}%',
+                mint),
+          ]),
+
+          pw.SizedBox(height: 18),
+
+          // ══ TOP 5 RANKED DRUGS TABLE ══════════════════════════════════════
+          _pdfSectionLabel(ttBold, 'Top Drug Rankings', blue),
+          pw.SizedBox(height: 8),
+          pw.Table(
+            border: pw.TableBorder.all(
+                color: PdfColor.fromInt(0xFFE0E0E0), width: 0.5),
+            columnWidths: {
+              0: const pw.FixedColumnWidth(28),
+              1: const pw.FlexColumnWidth(3),
+              2: const pw.FlexColumnWidth(2),
+              3: const pw.FixedColumnWidth(60),
+              4: const pw.FixedColumnWidth(60),
+              5: const pw.FixedColumnWidth(50),
+            },
+            children: [
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: rowAlt),
+                children: ['Rank','Drug','Category','Efficacy','Viability','Well']
+                    .map((h) => pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                  child: pw.Text(h, style: ts(7.5, font: ttBold,
+                      color: grey, spacing: 0.4)),
+                )).toList(),
+              ),
+              ...widget.ranked.take(10).toList().asMap().entries.map((e) {
+                final r = e.value;
+                final ec = efficacyPdf(r.efficacy);
+                final bg = e.key.isOdd ? PdfColors.white : rowAlt;
+                pw.Widget cell(pw.Widget w) => pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    child: w);
+                return pw.TableRow(
+                  decoration: pw.BoxDecoration(color: bg),
+                  children: [
+                    cell(pw.Container(
+                      width: 18, height: 18,
+                      decoration: pw.BoxDecoration(
+                        color: r.rank == 1 ? green : ec.shade(0.15),
+                        borderRadius: pw.BorderRadius.circular(4),
+                      ),
+                      child: pw.Center(child: pw.Text('${r.rank}',
+                          style: ts(9, font: ttBold,
+                              color: r.rank == 1 ? PdfColors.white : ec))),
+                    )),
+                    cell(pw.Text(r.drug,
+                        style: ts(10, font: ttBold))),
+                    cell(pw.Text(r.category,
+                        style: ts(9, color: grey))),
+                    cell(pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: pw.BoxDecoration(
+                        color: ec.shade(0.12),
+                        borderRadius: pw.BorderRadius.circular(4),
+                      ),
+                      child: pw.Text('${r.efficacy.toStringAsFixed(1)}%',
+                          style: ts(10, font: ttBold, color: ec)),
+                    )),
+                    cell(pw.Text('${r.viability.toStringAsFixed(1)}%',
+                        style: ts(9, color: grey))),
+                    cell(pw.Text('W${r.wellIndex + 1}',
+                        style: ts(9, font: ttMono, color: grey))),
+                  ],
+                );
+              }),
+            ],
+          ),
+
+          pw.SizedBox(height: 18),
+
+          // ══ FULL WELL DATA TABLE ══════════════════════════════════════════
+          _pdfSectionLabel(ttBold, 'Complete Well Data', blue),
+          pw.SizedBox(height: 8),
+          pw.Table(
+            border: pw.TableBorder.all(
+                color: PdfColor.fromInt(0xFFE0E0E0), width: 0.5),
+            columnWidths: {
+              0: const pw.FixedColumnWidth(28),
+              1: const pw.FlexColumnWidth(3),
+              2: const pw.FlexColumnWidth(2),
+              3: const pw.FixedColumnWidth(50),
+              4: const pw.FixedColumnWidth(50),
+              5: const pw.FixedColumnWidth(40),
+              6: const pw.FixedColumnWidth(40),
+              7: const pw.FixedColumnWidth(40),
+            },
+            children: [
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: rowAlt),
+                children: ['Well','Drug','Category','Efficacy','Viability','Total','Alive','Dead']
+                    .map((h) => pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+                  child: pw.Text(h, style: ts(7, font: ttBold,
+                      color: grey, spacing: 0.3)),
+                )).toList(),
+              ),
+              ...widget.wells.asMap().entries.map((e) {
+                final w = e.value;
+                final ec = efficacyPdf(w.efficacy);
+                final bg = e.key.isOdd ? PdfColors.white : rowAlt;
+                pw.Widget cell(pw.Widget wd) => pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+                    child: wd);
+                return pw.TableRow(
+                  decoration: pw.BoxDecoration(color: bg),
+                  children: [
+                    cell(pw.Text('W${w.wellIndex + 1}',
+                        style: ts(8, font: ttMono, color: grey))),
+                    cell(pw.Text(w.drug, style: ts(8, font: ttBold))),
+                    cell(pw.Text(w.category, style: ts(8, color: grey))),
+                    cell(pw.Text('${w.efficacy.toStringAsFixed(1)}%',
+                        style: ts(9, font: ttBold, color: ec))),
+                    cell(pw.Text('${w.viability.toStringAsFixed(1)}%',
+                        style: ts(8, color: grey))),
+                    cell(pw.Text('${w.totalCells}', style: ts(8))),
+                    cell(pw.Text('${w.aliveCells}',
+                        style: ts(8, color: PdfColor.fromInt(0xFFEF5350)))),
+                    cell(pw.Text('${w.deadCells}',
+                        style: ts(8, color: mint))),
+                  ],
+                );
+              }),
+            ],
+          ),
+
+          pw.SizedBox(height: 20),
+
+          // ══ CLINICAL NOTE ════════════════════════════════════════════════
+          pw.Container(
+            padding: const pw.EdgeInsets.all(14),
+            decoration: pw.BoxDecoration(
+              color: green.shade(0.06),
+              borderRadius: pw.BorderRadius.circular(8),
+              border: pw.Border.all(color: green.shade(0.3), width: 0.8),
+            ),
+            child: pw.Row(children: [
+              pw.Container(width: 8, height: 8,
+                  decoration: pw.BoxDecoration(color: green, shape: pw.BoxShape.circle)),
+              pw.SizedBox(width: 10),
+              pw.Expanded(child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                pw.Text('Analysis validated. Recommended treatment: ${widget.bestDrug}',
+                    style: ts(10, font: ttBold)),
+                pw.SizedBox(height: 2),
+                pw.Text('Analyst: ${widget.technician}  ·  $_dateStr',
+                    style: ts(8, color: grey)),
+              ])),
+            ]),
+          ),
+
+          pw.SizedBox(height: 16),
+          pw.Divider(color: PdfColor.fromInt(0xFFE0E0E0), thickness: 0.5),
+          pw.SizedBox(height: 6),
+          pw.Text(
+            'This report is generated automatically by the TheraMeDx1 Sampler™ software. '
+            'Drug efficacy values are based on in-vitro cell viability assays and are intended '
+            'for research use only. Not for direct clinical use without physician review.',
+            style: ts(7.5, color: grey),
+          ),
+        ],
+      ));
+
+      final dir = await getDownloadsDirectory() ??
+                  await getApplicationDocumentsDirectory();
+      final now2 = DateTime.now();
+      final fname = 'oncology_report_${widget.patient['id']}_'
+          '${now2.year}${now2.month.toString().padLeft(2,'0')}'
+          '${now2.day.toString().padLeft(2,'0')}'
+          '_${now2.hour.toString().padLeft(2,'0')}'
+          '${now2.minute.toString().padLeft(2,'0')}.pdf';
+      final file = File('${dir.path}/$fname');
+      await file.writeAsBytes(await pdf.save());
+      setState(() { _exporting = false; _exportedPath = file.path; });
+      if (Platform.isMacOS) await Process.run('open', [file.path]);
+      else if (Platform.isLinux) await Process.run('xdg-open', [file.path]);
+      else if (Platform.isWindows) await Process.run('start', [file.path], runInShell: true);
+    } catch (e) {
+      setState(() => _exporting = false);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Export failed: $e'),
+        backgroundColor: const Color(0xFFEF5350),
+      ));
+    }
+  }
+
+  // ── PDF helpers (reused from protocol report) ─────────────────────────────
+  pw.Widget _pdfChip(pw.Font font, String label, double size) =>
+      pw.Container(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: pw.BoxDecoration(color: PdfColor.fromInt(0xFFF3F3F3),
+            borderRadius: pw.BorderRadius.circular(6)),
+        child: pw.Text(label, style: pw.TextStyle(font: font, fontSize: size,
+            color: PdfColor.fromInt(0xFF666666))),
+      );
+
+  pw.Widget _pdfSectionLabel(pw.Font bold, String text, PdfColor col) =>
+      pw.Row(children: [
+        pw.Container(width: 3, height: 12,
+            decoration: pw.BoxDecoration(color: col,
+                borderRadius: pw.BorderRadius.circular(2))),
+        pw.SizedBox(width: 7),
+        pw.Text(text, style: pw.TextStyle(font: bold, fontSize: 11,
+            color: PdfColor.fromInt(0xFF1A1A2E), letterSpacing: 0.4)),
+      ]);
+
+  pw.Widget _pdfKV(pw.Font reg, pw.Font bold, String key, String val) =>
+      pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        pw.Text(key, style: pw.TextStyle(font: bold, fontSize: 7.5,
+            color: PdfColor.fromInt(0xFF999999), letterSpacing: 0.4)),
+        pw.SizedBox(height: 3),
+        pw.Text(val, style: pw.TextStyle(font: bold, fontSize: 11,
+            color: PdfColor.fromInt(0xFF1A1A2E))),
+      ]);
+
+  pw.Widget _pdfStatCard(pw.Font reg, pw.Font bold,
+      String label, String value, PdfColor col) =>
+      pw.Expanded(child: pw.Container(
+        padding: const pw.EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        decoration: pw.BoxDecoration(
+          color: col.shade(0.08),
+          borderRadius: pw.BorderRadius.circular(8),
+          border: pw.Border.all(color: col.shade(0.25), width: 0.5),
+        ),
+        child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+          pw.Text(label, style: pw.TextStyle(font: bold, fontSize: 7.5,
+              color: col.shade(0.6), letterSpacing: 0.4)),
+          pw.SizedBox(height: 3),
+          pw.Text(value, style: pw.TextStyle(font: bold, fontSize: 16, color: col)),
+        ]),
+      ));
+
+  // ── Flutter UI ──────────────────────────────────────────────────────────────
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 60, vertical: 40),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 780),
+        decoration: BoxDecoration(
+          color: false ? AppColors.darkCard : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.25),
+              blurRadius: 40, offset: const Offset(0, 12))],
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+
+          // ── Header ──
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+            decoration: const BoxDecoration(
+              color: Color(0xFF1A1A2E),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: const Color(0xFF1B8A5A).withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.biotech, color: Color(0xFF26C6A0), size: 20),
+              ),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Oncology Results Report',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: false ? AppColors.darkCard : Colors.white)),
+                Text('TheraMeDx1 Sampler™  —  Cell Viability & Drug Efficacy',
+                    style: TextStyle(fontSize: 10, color: Colors.white38)),
+              ])),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF26C6A0).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFF26C6A0).withOpacity(0.5)),
+                ),
+                child: const Text('ANALYSIS COMPLETE', style: TextStyle(fontSize: 9,
+                    fontWeight: FontWeight.w800, color: Color(0xFF26C6A0))),
+              ),
+              const SizedBox(width: 14),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: const Icon(Icons.close, color: Colors.white38, size: 18),
+              ),
+            ]),
+          ),
+
+          // ── Body ──
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(28),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+                // Meta row
+                Row(children: [
+                  _chip(Icons.calendar_today_outlined, _dateStr),
+                  const SizedBox(width: 8),
+                  _chip(Icons.person_outline, 'Analyst: ${widget.technician}'),
+                  const SizedBox(width: 8),
+                  _chip(Icons.science_outlined, '${widget.wells.length} wells'),
+                ]),
+                const SizedBox(height: 20),
+
+                // Patient card
+                _sectionLabel('Patient'),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: false ? AppColors.darkElevated : const Color(0xFFF8F9FF),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: false ? AppColors.darkBorder : Colors.black12)),
+                  child: Row(children: [
+                    Expanded(child: _kv('Patient ID', widget.patient['id'] ?? '—')),
+                    Expanded(child: _kv('Age', widget.patient['age'] ?? '—')),
+                    Expanded(flex: 2, child: _kv('Diagnosis', widget.patient['diagnosis'] ?? '—')),
+                  ]),
+                ),
+                const SizedBox(height: 20),
+
+                // Recommendation banner
+                _sectionLabel('Treatment Recommendation'),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                        colors: [Color(0xFF0D4F35), Color(0xFF1B8A5A)]),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [BoxShadow(color: const Color(0xFF1B8A5A).withOpacity(0.3),
+                        blurRadius: 12, offset: const Offset(0, 4))],
+                  ),
+                  child: Row(children: [
+                    Container(padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(10)),
+                      child: Icon(Icons.recommend_rounded,
+                          color: false ? AppColors.darkCard : Colors.white, size: 24)),
+                    const SizedBox(width: 16),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text('RECOMMENDED TREATMENT', style: TextStyle(fontSize: 9,
+                          fontWeight: FontWeight.w700, color: Colors.white60, letterSpacing: 1.2)),
+                      const SizedBox(height: 4),
+                      Text(widget.bestDrug, style: TextStyle(fontSize: 22,
+                          fontWeight: FontWeight.w800, color: false ? AppColors.darkCard : Colors.white)),
+                      Text('${widget.bestCategory}  ·  ${widget.bestEfficacy.toStringAsFixed(1)}% tumour cell kill rate',
+                          style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                    ])),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(10)),
+                      child: Column(children: [
+                        Text('${widget.bestEfficacy.toStringAsFixed(0)}%',
+                            style: TextStyle(fontSize: 26,
+                                fontWeight: FontWeight.w800, color: false ? AppColors.darkCard : Colors.white)),
+                        const Text('efficacy', style: TextStyle(fontSize: 10,
+                            color: Colors.white60)),
+                      ]),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 20),
+
+                // Summary stats
+                _sectionLabel('Analysis Summary'),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(child: _statCard('Wells Tested',
+                      '${widget.wells.length}', const Color(0xFF388BFF))),
+                  const SizedBox(width: 10),
+                  Expanded(child: _statCard('Best Efficacy',
+                      '${widget.bestEfficacy.toStringAsFixed(1)}%',
+                      const Color(0xFF1B8A5A))),
+                  const SizedBox(width: 10),
+                  Expanded(child: _statCard('Avg Efficacy',
+                      widget.wells.isEmpty ? '—'
+                      : '${(widget.wells.fold(0.0,(a,b)=>a+b.efficacy)/widget.wells.length).toStringAsFixed(1)}%',
+                      const Color(0xFF388BFF))),
+                  const SizedBox(width: 10),
+                  Expanded(child: _statCard('Avg Viability',
+                      widget.wells.isEmpty ? '—'
+                      : '${(widget.wells.fold(0.0,(a,b)=>a+b.viability)/widget.wells.length).toStringAsFixed(1)}%',
+                      const Color(0xFF26C6A0))),
+                ]),
+                const SizedBox(height: 20),
+
+                // Top rankings table
+                _sectionLabel('Drug Rankings'),
+                const SizedBox(height: 8),
+                _rankingsTable(),
+                const SizedBox(height: 20),
+
+                // Full well data
+                _sectionLabel('Complete Well Data'),
+                const SizedBox(height: 8),
+                _wellTable(),
+                const SizedBox(height: 8),
+
+                // Disclaimer
+                Text(
+                  'Drug efficacy values are based on in-vitro cell viability assays. '
+                  'Not for direct clinical use without physician review.',
+                  style: TextStyle(fontSize: 9, color: false ? AppColors.darkMuted : Colors.black26,
+                      fontStyle: FontStyle.italic, height: 1.5),
+                ),
+              ]),
+            ),
+          ),
+
+          // ── Footer ──
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+            decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: Colors.black.withOpacity(0.07)))),
+            child: Row(children: [
+              if (_exportedPath != null) ...[
+                const Icon(Icons.check_circle_outline, size: 14, color: Color(0xFF26C6A0)),
+                const SizedBox(width: 6),
+                Expanded(child: Text(
+                  'Saved: ${_exportedPath!.split('/').last}',
+                  style: const TextStyle(fontSize: 10, color: Color(0xFF26C6A0)),
+                  overflow: TextOverflow.ellipsis)),
+              ] else
+                const Expanded(child: SizedBox()),
+              GestureDetector(
+                onTap: _exporting ? null : _exportPdf,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _exporting ? Colors.black12 : const Color(0xFF388BFF),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    _exporting
+                        ? SizedBox(width: 13, height: 13,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: false ? AppColors.darkCard : Colors.white))
+                        : Icon(Icons.picture_as_pdf_outlined, size: 14, color: false ? AppColors.darkCard : Colors.white),
+                    const SizedBox(width: 7),
+                    Text(_exporting ? 'Generating…' : 'Export PDF',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                            color: false ? AppColors.darkCard : Colors.white)),
+                  ]),
+                ),
+              ),
+              const SizedBox(width: 10),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Close', style: TextStyle(color: false ? AppColors.darkSubtext : Colors.black45)),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String text) => Row(children: [
+    Container(width: 3, height: 14, decoration: BoxDecoration(
+        color: const Color(0xFF388BFF), borderRadius: BorderRadius.circular(2))),
+    const SizedBox(width: 8),
+    Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
+        color: Color(0xFF1A1A2E), letterSpacing: 0.5)),
+  ]);
+
+  Widget _chip(IconData icon, String label) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    decoration: BoxDecoration(color: false ? AppColors.darkSurface : const Color(0xFFF3F3F3),
+        borderRadius: BorderRadius.circular(8)),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 11, color: false ? AppColors.darkMuted : Colors.black38),
+      const SizedBox(width: 5),
+      Text(label, style: TextStyle(fontSize: 10, color: false ? AppColors.darkSubtext : Colors.black45)),
+    ]),
+  );
+
+  Widget _kv(String key, String val) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text(key, style: TextStyle(fontSize: 9, color: false ? AppColors.darkMuted : Colors.black38,
+        fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+    const SizedBox(height: 3),
+    Text(val, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+        color: false ? AppColors.darkText : const Color(0xFF1A1A2E))),
+  ]);
+
+  Widget _statCard(String label, String value, Color col) => Container(
+    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+    decoration: BoxDecoration(
+      color: col.withOpacity(0.07),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: col.withOpacity(0.2)),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600,
+          color: col.withOpacity(0.7), letterSpacing: 0.5)),
+      const SizedBox(height: 4),
+      Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: col)),
+    ]),
+  );
+
+  Widget _rankingsTable() {
+    final t = AppTheme(false); // forced light for report
+    return Container(
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: false ? AppColors.darkBorder : Colors.black12)),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Table(
+          columnWidths: const {
+            0: FixedColumnWidth(40),
+            1: FlexColumnWidth(3),
+            2: FlexColumnWidth(2),
+            3: FixedColumnWidth(80),
+            4: FixedColumnWidth(80),
+            5: FixedColumnWidth(50),
+          },
+          children: [
+            TableRow(
+              decoration: BoxDecoration(color: t.dark ? AppColors.darkElevated : const Color(0xFFF3F3F3)),
+              children: ['Rank','Drug','Category','Efficacy','Viability','Well']
+                  .map((h) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                child: Text(h, style: TextStyle(fontSize: 9,
+                    fontWeight: FontWeight.w800, color: t.muted, letterSpacing: 0.5)),
+              )).toList(),
+            ),
+            ...widget.ranked.take(10).toList().asMap().entries.map((e) {
+              final r = e.value;
+              final col = _efficacyColor(r.efficacy);
+              final bg = e.key.isOdd ? (t.dark ? AppColors.darkCard : Colors.white) : (t.dark ? AppColors.darkSurface : const Color(0xFFFAFAFA));
+              Widget cell(Widget w) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  child: w);
+              return TableRow(
+                decoration: BoxDecoration(color: bg),
+                children: [
+                  cell(Container(
+                    width: 22, height: 22,
+                    decoration: BoxDecoration(
+                      color: r.rank == 1 ? const Color(0xFF1B8A5A) : col.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Center(child: Text('${r.rank}', style: TextStyle(
+                        fontSize: 11, fontWeight: FontWeight.w800,
+                        color: r.rank == 1 ? Colors.white : col))),
+                  )),
+                  cell(Text(r.drug, style: TextStyle(fontSize: 11,
+                      fontWeight: FontWeight.w700, color: false ? AppColors.darkText : const Color(0xFF1A1A2E)))),
+                  cell(Text(r.category, style: TextStyle(
+                      fontSize: 10, color: false ? AppColors.darkSubtext : Colors.black45))),
+                  cell(Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: col.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(5)),
+                    child: Text('${r.efficacy.toStringAsFixed(1)}%',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: col)),
+                  )),
+                  cell(Text('${r.viability.toStringAsFixed(1)}%',
+                      style: TextStyle(fontSize: 10, color: false ? AppColors.darkSubtext : Colors.black45))),
+                  cell(Text('W${r.wellIndex + 1}', style: TextStyle(
+                      fontSize: 10, fontFamily: 'monospace', color: false ? AppColors.darkMuted : Colors.black38))),
+                ],
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _wellTable() {
+    final t = AppTheme(false); // forced light for report
+    return Container(
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: false ? AppColors.darkBorder : Colors.black12)),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Table(
+          columnWidths: const {
+            0: FixedColumnWidth(40),
+            1: FlexColumnWidth(3),
+            2: FlexColumnWidth(2),
+            3: FixedColumnWidth(70),
+            4: FixedColumnWidth(70),
+            5: FixedColumnWidth(50),
+            6: FixedColumnWidth(50),
+            7: FixedColumnWidth(50),
+          },
+          children: [
+            TableRow(
+              decoration: BoxDecoration(color: t.dark ? AppColors.darkElevated : const Color(0xFFF3F3F3)),
+              children: ['Well','Drug','Category','Efficacy','Viability','Total','Alive','Dead']
+                  .map((h) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+                child: Text(h, style: TextStyle(fontSize: 8,
+                    fontWeight: FontWeight.w800, color: false ? AppColors.darkMuted : Colors.black38, letterSpacing: 0.4)),
+              )).toList(),
+            ),
+            ...widget.wells.asMap().entries.map((e) {
+              final w = e.value;
+              final col = _efficacyColor(w.efficacy);
+              final bg = e.key.isOdd ? Colors.white : const Color(0xFFFAFAFA);
+              Widget cell(Widget wd) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  child: wd);
+              return TableRow(
+                decoration: BoxDecoration(color: bg),
+                children: [
+                  cell(Text('W${w.wellIndex + 1}', style: TextStyle(
+                      fontSize: 9, fontFamily: 'monospace', color: false ? AppColors.darkMuted : Colors.black38))),
+                  cell(Text(w.drug, style: TextStyle(fontSize: 10,
+                      fontWeight: FontWeight.w600, color: false ? AppColors.darkText : const Color(0xFF1A1A2E)))),
+                  cell(Text(w.category, style: TextStyle(
+                      fontSize: 9, color: false ? AppColors.darkSubtext : Colors.black45))),
+                  cell(Text('${w.efficacy.toStringAsFixed(1)}%',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: col))),
+                  cell(Text('${w.viability.toStringAsFixed(1)}%',
+                      style: TextStyle(fontSize: 9, color: false ? AppColors.darkSubtext : Colors.black45))),
+                  cell(Text('${w.totalCells}', style: const TextStyle(
+                      fontSize: 9, color: Colors.black54))),
+                  cell(Text('${w.aliveCells}', style: const TextStyle(
+                      fontSize: 9, color: Color(0xFFEF5350)))),
+                  cell(Text('${w.deadCells}', style: const TextStyle(
+                      fontSize: 9, color: Color(0xFF26C6A0)))),
+                ],
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Session History Dialog ───────────────────────────────────────────────────
+class SessionHistoryDialog extends StatefulWidget {
+  final String patientId;
+  const SessionHistoryDialog({super.key, required this.patientId});
+  @override
+  State<SessionHistoryDialog> createState() => _SessionHistoryDialogState();
+}
+
+class _SessionHistoryDialogState extends State<SessionHistoryDialog> {
+  List<PatientSession> _sessions = [];
+  bool _loading = true;
+  bool _showAll = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final all = await SessionHistory.load();
+    setState(() {
+      _sessions = _showAll ? all : all.where((s) => s.patientId == widget.patientId).toList();
+      _loading = false;
+    });
+  }
+
+  Future<void> _clearHistory() async {
+    await SessionHistory.clear();
+    setState(() { _sessions = []; });
+  }
+
+  Color _efficacyColor(double e) {
+    if (e >= 75) return AppColors.green;
+    if (e >= 60) return AppColors.mint;
+    if (e >= 45) return AppColors.amber;
+    if (e >= 30) return const Color(0xFFFF7043);
+    return AppColors.red;
+  }
+
+  String _formatDate(DateTime dt) {
+    return '${dt.day.toString().padLeft(2,'0')}/${dt.month.toString().padLeft(2,'0')}/${dt.year}  '
+           '${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = themeNotifier.theme;
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 60, vertical: 40),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 700, maxHeight: 560),
+        decoration: BoxDecoration(
+          color: t.card,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(t.dark ? 0.5 : 0.2),
+              blurRadius: 40, offset: const Offset(0, 12))],
+        ),
+        child: Column(children: [
+
+          // ── Header ──
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+            decoration: const BoxDecoration(
+              color: AppColors.navy,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: const Color(0xFF9C27B0).withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.history_rounded, color: Color(0xFFCE93D8), size: 18),
+              ),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Session History',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: themeNotifier.dark ? AppColors.darkCard : Colors.white)),
+                Text(_showAll ? 'All patients' : 'Patient ${widget.patientId}',
+                    style: const TextStyle(fontSize: 10, color: Colors.white38)),
+              ])),
+
+              // All / This patient toggle
+              GestureDetector(
+                onTap: () { setState(() { _showAll = !_showAll; _loading = true; }); _load(); },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Text(_showAll ? 'This patient' : 'All patients',
+                      style: const TextStyle(fontSize: 10, color: Colors.white70,
+                          fontWeight: FontWeight.w600)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: const Icon(Icons.close, color: Colors.white38, size: 18),
+              ),
+            ]),
+          ),
+
+          // ── Body ──
+          Expanded(child: _loading
+            ? Center(child: CircularProgressIndicator(
+                color: const Color(0xFF9C27B0), strokeWidth: 2))
+            : _sessions.isEmpty
+              ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.history_rounded, size: 40, color: t.muted),
+                  const SizedBox(height: 12),
+                  Text('No sessions recorded yet',
+                      style: TextStyle(fontSize: 13, color: t.muted)),
+                  const SizedBox(height: 6),
+                  Text('Run an analysis to start tracking results',
+                      style: TextStyle(fontSize: 11, color: t.muted)),
+                ]))
+              : ListView.separated(
+                  padding: const EdgeInsets.all(20),
+                  itemCount: _sessions.length,
+                  separatorBuilder: (_, __) => Divider(color: t.border, height: 1),
+                  itemBuilder: (_, i) {
+                    final s = _sessions[i];
+                    final col = _efficacyColor(s.bestEfficacy);
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Row(children: [
+                        // Rank/index badge
+                        Container(
+                          width: 32, height: 32,
+                          decoration: BoxDecoration(
+                            color: i == 0 && !_showAll
+                                ? AppColors.green.withOpacity(0.15)
+                                : t.surface,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: t.border),
+                          ),
+                          child: Center(child: Text('${i + 1}',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                                  color: i == 0 && !_showAll ? AppColors.green : t.muted))),
+                        ),
+                        const SizedBox(width: 14),
+
+                        // Main info
+                        Expanded(child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Row(children: [
+                            if (_showAll) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.purple.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: Text(s.patientId,
+                                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700,
+                                        fontFamily: 'monospace',
+                                        color: t.dark ? AppColors.mint : AppColors.purple)),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
+                            Flexible(child: Text(s.diagnosis,
+                                style: TextStyle(fontSize: 11, color: t.muted),
+                                overflow: TextOverflow.ellipsis)),
+                          ]),
+                          const SizedBox(height: 3),
+                          Text(s.bestDrug,
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                                  color: t.text)),
+                          const SizedBox(height: 2),
+                          Text('${s.bestCategory}  ·  ${s.wellCount} wells  ·  ${_formatDate(s.timestamp)}',
+                              style: TextStyle(fontSize: 10, color: t.muted)),
+                        ])),
+
+                        const SizedBox(width: 14),
+
+                        // Efficacy badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: col.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: col.withOpacity(0.3)),
+                          ),
+                          child: Column(children: [
+                            Text('${s.bestEfficacy.toStringAsFixed(0)}%',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800,
+                                    color: col)),
+                            Text('efficacy', style: TextStyle(fontSize: 8, color: t.muted)),
+                          ]),
+                        ),
+                      ]),
+                    );
+                  },
+                ),
+          ),
+
+          // ── Footer ──
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: t.border))),
+            child: Row(children: [
+              Text('${_sessions.length} session${_sessions.length == 1 ? '' : 's'}',
+                  style: TextStyle(fontSize: 11, color: t.muted)),
+              const Spacer(),
+              if (_sessions.isNotEmpty)
+                TextButton.icon(
+                  onPressed: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        backgroundColor: t.card,
+                        title: Text('Clear history?',
+                            style: TextStyle(color: t.text, fontSize: 14)),
+                        content: Text('This will delete all ${_sessions.length} sessions.',
+                            style: TextStyle(color: t.muted, fontSize: 12)),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Cancel')),
+                          TextButton(onPressed: () => Navigator.pop(context, true),
+                              child: const Text('Clear', style: TextStyle(color: AppColors.red))),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) _clearHistory();
+                  },
+                  icon: const Icon(Icons.delete_outline, size: 14, color: AppColors.red),
+                  label: const Text('Clear', style: TextStyle(fontSize: 11, color: AppColors.red)),
+                ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF9C27B0),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text('Close', style: TextStyle(fontSize: 12)),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── CSV Save Location Dialog ─────────────────────────────────────────────────
+// Uses native OS file-save dialog (Finder on macOS, Explorer on Windows)
+class _CsvSaveDialog extends StatefulWidget {
+  final String defaultDir;
+  final String defaultName;
+  const _CsvSaveDialog({required this.defaultDir, required this.defaultName});
+  @override
+  State<_CsvSaveDialog> createState() => _CsvSaveDialogState();
+}
+
+class _CsvSaveDialogState extends State<_CsvSaveDialog> {
+  late TextEditingController _nameCtrl;
+  String? _chosenDir;   // null = use defaultDir
+  bool _picking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Strip .csv suffix for display — we add it back on save
+    final rawName = widget.defaultName.endsWith('.csv')
+        ? widget.defaultName.substring(0, widget.defaultName.length - 4)
+        : widget.defaultName;
+    _nameCtrl = TextEditingController(text: rawName);
+  }
+
+  @override
+  void dispose() { _nameCtrl.dispose(); super.dispose(); }
+
+  String get _activeDir => _chosenDir ?? widget.defaultDir;
+
+  String get _fullPath {
+    var name = _nameCtrl.text.trim();
+    if (name.isEmpty) name = widget.defaultName;
+    if (!name.endsWith('.csv')) name += '.csv';
+    return '$_activeDir/$name';
+  }
+
+  Future<void> _pickFolder() async {
+    setState(() => _picking = true);
+    try {
+      String? picked;
+      if (Platform.isMacOS) {
+        // Use osascript to show native Finder folder picker
+        final result = await Process.run('osascript', [
+          '-e',
+          'tell application "Finder" to set f to choose folder with prompt "Choose export folder:" default location POSIX file "$_activeDir"\nreturn POSIX path of f',
+        ]);
+        if (result.exitCode == 0) {
+          picked = (result.stdout as String).trim().replaceAll(RegExp(r'/$'), '');
+        }
+      } else if (Platform.isLinux) {
+        // Use zenity (available in all GTK desktops)
+        final result = await Process.run('zenity', [
+          '--file-selection', '--directory',
+          '--title=Choose export folder',
+          '--filename=$_activeDir/',
+        ]);
+        if (result.exitCode == 0) {
+          picked = (result.stdout as String).trim().replaceAll(RegExp(r'/$'), '');
+        }
+      } else if (Platform.isWindows) {
+        // PowerShell folder browser dialog
+        final result = await Process.run('powershell', [
+          '-command',
+          '[System.Reflection.Assembly]::LoadWithPartialName("System.windows.forms") | Out-Null; \$f = New-Object System.Windows.Forms.FolderBrowserDialog; \$f.SelectedPath = "$_activeDir"; if(\$f.ShowDialog() -eq "OK") { Write-Output \$f.SelectedPath }',
+        ], runInShell: true);
+        if (result.exitCode == 0 && (result.stdout as String).trim().isNotEmpty) {
+          picked = (result.stdout as String).trim();
+        }
+      }
+      if (picked != null && picked.isNotEmpty) {
+        setState(() => _chosenDir = picked);
+      }
+    } catch (_) {
+      // silently ignore if native dialog not available
+    } finally {
+      setState(() => _picking = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = themeNotifier.theme;
+    final dirDisplay = _activeDir.length > 42
+        ? '…${_activeDir.substring(_activeDir.length - 42)}'
+        : _activeDir;
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 480),
+        decoration: BoxDecoration(
+          color: t.card,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(t.dark ? 0.4 : 0.18),
+              blurRadius: 32, offset: const Offset(0, 10))],
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+
+          // Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+            decoration: const BoxDecoration(
+              color: Color(0xFF1A1A2E),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF388BFF).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.download_outlined,
+                    color: Color(0xFF388BFF), size: 16),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Export Sensor Data',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
+                        color: themeNotifier.dark ? AppColors.darkCard : Colors.white)),
+                Text('Choose where to save the CSV file',
+                    style: TextStyle(fontSize: 10, color: Colors.white38)),
+              ])),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: const Icon(Icons.close, color: Colors.white38, size: 16),
+              ),
+            ]),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+              // Save folder row
+              Text('Save to folder', style: TextStyle(fontSize: 10,
+                  fontWeight: FontWeight.w700, color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black45,
+                  letterSpacing: 0.5)),
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: themeNotifier.dark ? AppColors.darkElevated : const Color(0xFFF8F9FF),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12),
+                    ),
+                    child: Row(children: [
+                      Icon(Icons.folder_outlined, size: 14, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(dirDisplay,
+                          style: const TextStyle(fontSize: 11,
+                              fontFamily: 'monospace', color: Colors.black54),
+                          overflow: TextOverflow.ellipsis)),
+                    ]),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: _picking ? null : _pickFolder,
+                  icon: _picking
+                      ? SizedBox(width: 12, height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 2,
+                              color: themeNotifier.dark ? AppColors.darkCard : Colors.white))
+                      : const Icon(Icons.folder_open_outlined, size: 14),
+                  label: Text(_picking ? 'Opening…' : 'Browse…'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF170345),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 11),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    textStyle: const TextStyle(fontSize: 11,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ]),
+
+              const SizedBox(height: 16),
+
+              // Filename field
+              Text('File name', style: TextStyle(fontSize: 10,
+                  fontWeight: FontWeight.w700, color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black45,
+                  letterSpacing: 0.5)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _nameCtrl,
+                style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  prefixIcon: Icon(Icons.insert_drive_file_outlined,
+                      size: 16, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38),
+                  suffixText: '.csv',
+                  suffixStyle: TextStyle(fontSize: 11, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 11),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
+                  enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
+                  focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                          color: Color(0xFF388BFF), width: 1.5)),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              // Full path preview
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF388BFF).withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: const Color(0xFF388BFF).withOpacity(0.2)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.info_outline, size: 12,
+                      color: Color(0xFF388BFF)),
+                  const SizedBox(width: 7),
+                  Expanded(child: Text(_fullPath,
+                      style: const TextStyle(fontSize: 10,
+                          fontFamily: 'monospace', color: Colors.black54),
+                      overflow: TextOverflow.ellipsis)),
+                ]),
+              ),
+
+              const SizedBox(height: 20),
+              Row(children: [
+                Expanded(child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancel',
+                      style: TextStyle(color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38)),
+                )),
+                const SizedBox(width: 10),
+                Expanded(child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(context, _fullPath),
+                  icon: const Icon(Icons.download_outlined, size: 15),
+                  label: const Text('Save Here'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF388BFF),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                )),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── Alarm Threshold Editor Dialog ────────────────────────────────────────────
+class _AlarmThresholdDialog extends StatefulWidget {
+  final Map<String, Map<String, double>> warningThresholds;
+  final Map<String, Map<String, double>> criticalThresholds;
+  final Map<String, String> units;
+  final void Function(
+    Map<String, Map<String, double>>,
+    Map<String, Map<String, double>>,
+  ) onSave;
+
+  const _AlarmThresholdDialog({
+    required this.warningThresholds,
+    required this.criticalThresholds,
+    required this.units,
+    required this.onSave,
+  });
+
+  @override
+  State<_AlarmThresholdDialog> createState() => _AlarmThresholdDialogState();
+}
+
+class _AlarmThresholdDialogState extends State<_AlarmThresholdDialog> {
+  late Map<String, Map<String, double>> _warn;
+  late Map<String, Map<String, double>> _crit;
+
+  static const _labels = {
+    'temperature': ('🌡', 'Temperature'),
+    'humidity':    ('💧', 'Humidity'),
+    'co2':         ('💨', 'CO₂'),
+    'o2':          ('🫁', 'O₂'),
+    'pressure':    ('⏱', 'Pressure'),
+    'ph':          ('🧪', 'pH'),
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    // Deep copy so edits don't mutate originals until Save
+    _warn = widget.warningThresholds.map((k, v) => MapEntry(k, Map.from(v)));
+    _crit = widget.criticalThresholds.map((k, v) => MapEntry(k, Map.from(v)));
+  }
+
+  void _reset() => setState(() {
+    _warn = {
+      'temperature': {'lo': 36.0, 'hi': 38.0},
+      'humidity':    {'lo': 90.0, 'hi': 98.0},
+      'co2':         {'lo': 4.5,  'hi': 5.5},
+      'o2':          {'lo': 19.0, 'hi': 22.0},
+      'pressure':    {'lo': 1005.0,'hi': 1020.0},
+      'ph':          {'lo': 7.2,  'hi': 7.6},
+    };
+    _crit = {
+      'temperature': {'lo': 35.0, 'hi': 39.5},
+      'humidity':    {'lo': 85.0, 'hi': 100.0},
+      'co2':         {'lo': 3.5,  'hi': 7.0},
+      'o2':          {'lo': 17.0, 'hi': 24.0},
+      'pressure':    {'lo': 990.0,'hi': 1035.0},
+      'ph':          {'lo': 6.8,  'hi': 7.8},
+    };
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = themeNotifier.theme;
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 580),
+        decoration: BoxDecoration(
+          color: t.card,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(t.dark ? 0.45 : 0.2),
+              blurRadius: 40, offset: const Offset(0, 12))],
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+
+          // ── Header ──
+          Container(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+            decoration: const BoxDecoration(
+              color: Color(0xFF1A1A2E),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFA726).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.notifications_active_outlined,
+                    color: Color(0xFFFFA726), size: 18),
+              ),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Alarm Threshold Editor',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: themeNotifier.dark ? AppColors.darkCard : Colors.white)),
+                Text('Warning and critical bands per sensor — values outside trigger alarms',
+                    style: TextStyle(fontSize: 10, color: Colors.white38)),
+              ])),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: const Icon(Icons.close, color: Colors.white38, size: 18),
+              ),
+            ]),
+          ),
+
+          // ── Legend row ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
+            child: Row(children: [
+              const Expanded(flex: 3, child: SizedBox()),
+              _legendChip('WARNING', const Color(0xFFFFA726)),
+              const SizedBox(width: 8),
+              _legendChip('CRITICAL', const Color(0xFFEF5350)),
+            ]),
+          ),
+
+          // ── Sensor rows ──
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
+              child: Column(
+                children: _labels.keys.map((key) => _sensorRow(key)).toList(),
+              ),
+            ),
+          ),
+
+          // ── Footer ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
+            child: Row(children: [
+              TextButton.icon(
+                onPressed: _reset,
+                icon: const Icon(Icons.restart_alt, size: 14),
+                label: const Text('Reset defaults'),
+                style: TextButton.styleFrom(foregroundColor: themeNotifier.dark ? AppColors.darkSubtext : Colors.black38),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Cancel', style: TextStyle(color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38)),
+              ),
+              const SizedBox(width: 10),
+              ElevatedButton.icon(
+                onPressed: () {
+                  widget.onSave(_warn, _crit);
+                  Navigator.pop(context);
+                },
+                icon: const Icon(Icons.check, size: 15),
+                label: const Text('Save Thresholds'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1A1A2E),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _legendChip(String label, Color col) => Row(mainAxisSize: MainAxisSize.min, children: [
+    Container(width: 10, height: 10,
+        decoration: BoxDecoration(color: col.withOpacity(0.2),
+            shape: BoxShape.circle,
+            border: Border.all(color: col, width: 1.5))),
+    const SizedBox(width: 5),
+    Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700,
+        color: col, letterSpacing: 0.5)),
+    const SizedBox(width: 40),
+    Text('Lo', style: TextStyle(fontSize: 9, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38,
+        fontWeight: FontWeight.w700)),
+    const SizedBox(width: 52),
+    Text('Hi', style: TextStyle(fontSize: 9, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38,
+        fontWeight: FontWeight.w700)),
+  ]);
+
+  Widget _sensorRow(String key) {
+    final (emoji, label) = _labels[key]!;
+    final unit = widget.units[key] ?? '';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: themeNotifier.dark ? AppColors.darkElevated : const Color(0xFFF8F9FF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12),
+      ),
+      child: Row(children: [
+        // Label
+        SizedBox(width: 110, child: Row(children: [
+          Text(emoji, style: const TextStyle(fontSize: 14)),
+          const SizedBox(width: 8),
+          Text(label, style: TextStyle(fontSize: 12,
+              fontWeight: FontWeight.w600, color: themeNotifier.dark ? AppColors.darkText : const Color(0xFF1A1A2E))),
+        ])),
+
+        // Warning band
+        Expanded(child: Row(children: [
+          _thresholdField(_warn[key]!['lo']!, const Color(0xFFFFA726), (v) =>
+              setState(() => _warn[key]!['lo'] = v), unit),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Text('–', style: TextStyle(color: themeNotifier.dark ? AppColors.darkMuted : Colors.black26))),
+          _thresholdField(_warn[key]!['hi']!, const Color(0xFFFFA726), (v) =>
+              setState(() => _warn[key]!['hi'] = v), unit),
+        ])),
+
+        const SizedBox(width: 16),
+
+        // Critical band
+        Expanded(child: Row(children: [
+          _thresholdField(_crit[key]!['lo']!, const Color(0xFFEF5350), (v) =>
+              setState(() => _crit[key]!['lo'] = v), unit),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Text('–', style: TextStyle(color: themeNotifier.dark ? AppColors.darkMuted : Colors.black26))),
+          _thresholdField(_crit[key]!['hi']!, const Color(0xFFEF5350), (v) =>
+              setState(() => _crit[key]!['hi'] = v), unit),
+        ])),
+      ]),
+    );
+  }
+
+  Widget _thresholdField(double value, Color color,
+      ValueChanged<double> onChanged, String unit) {
+    final ctrl = TextEditingController(
+        text: value % 1 == 0 ? value.toStringAsFixed(1) : value.toStringAsFixed(2));
+    return SizedBox(
+      width: 72,
+      child: TextField(
+        controller: ctrl,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        textAlign: TextAlign.center,
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color),
+        onSubmitted: (v) { final d = double.tryParse(v); if (d != null) onChanged(d); },
+        onTapOutside: (_) {
+          final d = double.tryParse(ctrl.text); if (d != null) onChanged(d);
+        },
+        decoration: InputDecoration(
+          suffixText: unit,
+          suffixStyle: TextStyle(fontSize: 9, color: color.withOpacity(0.6)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: color.withOpacity(0.3))),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: color.withOpacity(0.3))),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: color, width: 1.5)),
+          filled: true,
+          fillColor: color.withOpacity(0.05),
+        ),
       ),
     );
   }
@@ -3425,8 +5820,8 @@ class _DockerProgressDialogState extends State<_DockerProgressDialog> {
               const SizedBox(width: 10),
               Expanded(child: Text(
                 'Docker  ·  ${widget.image}',
-                style: const TextStyle(fontSize: 13,
-                    fontWeight: FontWeight.w700, color: Colors.white),
+                style: TextStyle(fontSize: 13,
+                    fontWeight: FontWeight.w700, color: themeNotifier.dark ? AppColors.darkCard : Colors.white),
               )),
               // Phase badge
               Container(
@@ -3621,7 +6016,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
       final pdf = pw.Document(
         title: 'Protocol Run Report — ${patient['id']}',
         author: technician,
-        creator: 'TheraMeDx1 Sampler',
+        creator: 'Lab-on-Chip Monitor',
       );
 
       // ── Fonts ──
@@ -3661,7 +6056,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
                 pw.Text('Protocol Run Report',
                     style: ts(16, font: ttBold, color: PdfColors.white)),
                 pw.SizedBox(height: 3),
-                pw.Text('TheraMeDx1 Sampler\u2122  \u2014  IVD Device',
+                pw.Text('Lab-on-Chip Monitor  —  IVD Device',
                     style: ts(9, color: PdfColor.fromInt(0x88FFFFFF))),
               ]),
               pw.Container(
@@ -3812,9 +6207,9 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
           pw.Divider(color: PdfColor.fromInt(0xFFE0E0E0), thickness: 0.5),
           pw.SizedBox(height: 6),
           pw.Text(
-            'This report is generated automatically by the TheraMeDx1 Sampler\u2122 '
-            'software and is intended for authorised laboratory personnel only. '
-            'Not for direct clinical use without physician review.',
+            'This report is generated automatically by the Lab-on-Chip Monitor. '
+            'Built by Mattéo Meister (meister.matteo@outlook.com). '
+            'Intended for authorised laboratory personnel only. Not for direct clinical use without physician review.',
             style: ts(7.5, color: grey),
           ),
         ],
@@ -3937,7 +6332,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
         cell(pw.Text('${i+1}',
             style: pw.TextStyle(font: reg, fontSize: 8,
                 color: PdfColor.fromInt(0xFF999999)))),
-        cell(pw.Text(step.icon,
+        cell(pw.Text('',
             style: pw.TextStyle(font: reg, fontSize: 10))),
         cell(pw.Text(step.title,
             style: pw.TextStyle(font: bold, fontSize: 9,
@@ -3966,6 +6361,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppTheme(false); // forced light for report
     final now = DateTime.now();
     final dateStr =
         '${now.day.toString().padLeft(2,'0')}/${now.month.toString().padLeft(2,'0')}/${now.year}'
@@ -4005,13 +6401,13 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
               const Icon(Icons.description_outlined,
                   color: Colors.white70, size: 20),
               const SizedBox(width: 10),
-              const Expanded(
+              Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                   Text('Protocol Run Report',
                       style: TextStyle(fontSize: 15,
                           fontWeight: FontWeight.w800, color: Colors.white)),
-                  Text('TheraMeDx1 Sampler™  —  IVD Device',
+                  Text('Lab-on-Chip Monitor  —  IVD Device',
                       style: TextStyle(fontSize: 10, color: Colors.white38)),
                 ]),
               ),
@@ -4071,10 +6467,10 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
                 const SizedBox(height: 8),
 
                 // Footer
-                const Text(
-                  'This report is generated automatically by the TheraMeDx1 Sampler™ '
-                  'software and is intended for authorised laboratory personnel only. '
-                  'Not for direct clinical use without physician review.',
+                Text(
+                  'This report is generated automatically by the Lab-on-Chip Monitor. '
+                  'Built by Mattéo Meister (meister.matteo@outlook.com). '
+                  'Intended for authorised laboratory personnel only. Not for direct clinical use without physician review.',
                   style: TextStyle(fontSize: 9, color: Colors.black26,
                       fontStyle: FontStyle.italic, height: 1.5),
                 ),
@@ -4118,16 +6514,16 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     if (_exporting)
-                      const SizedBox(width: 13, height: 13,
+                      SizedBox(width: 13, height: 13,
                         child: CircularProgressIndicator(
                             strokeWidth: 2, color: Colors.white))
                     else
-                      const Icon(Icons.picture_as_pdf_outlined,
+                      Icon(Icons.picture_as_pdf_outlined,
                           size: 14, color: Colors.white),
                     const SizedBox(width: 7),
                     Text(
                       _exporting ? 'Exporting…' : 'Export PDF',
-                      style: const TextStyle(fontSize: 12,
+                      style: TextStyle(fontSize: 12,
                           fontWeight: FontWeight.w700,
                           color: Colors.white),
                     ),
@@ -4137,7 +6533,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
               const SizedBox(width: 10),
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Close',
+                child: Text('Close',
                     style: TextStyle(color: Colors.black45)),
               ),
             ]),
@@ -4152,8 +6548,8 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
         decoration: BoxDecoration(color: const Color(0xFF388BFF),
             borderRadius: BorderRadius.circular(2))),
     const SizedBox(width: 8),
-    Text(text, style: const TextStyle(fontSize: 12,
-        fontWeight: FontWeight.w800, color: Color(0xFF1A1A2E),
+    Text(text, style: TextStyle(fontSize: 12,
+        fontWeight: FontWeight.w800, color: const Color(0xFF1A1A2E),
         letterSpacing: 0.5)),
   ]);
 
@@ -4174,7 +6570,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
     child: Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(icon, size: 11, color: Colors.black38),
       const SizedBox(width: 5),
-      Text(label, style: const TextStyle(fontSize: 10, color: Colors.black45)),
+      Text(label, style: TextStyle(fontSize: 10, color: Colors.black45)),
     ]),
   );
 
@@ -4244,12 +6640,12 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
         children: [
           // Header
           TableRow(
-            decoration: const BoxDecoration(color: Color(0xFFF3F3F3)),
+            decoration: BoxDecoration(color: const Color(0xFFF3F3F3)),
             children: ['#', '', 'Step', 'QC Note', 'Duration', 'Status']
                 .map((h) => Padding(
               padding: const EdgeInsets.symmetric(
                   horizontal: 10, vertical: 9),
-              child: Text(h, style: const TextStyle(fontSize: 9,
+              child: Text(h, style: TextStyle(fontSize: 9,
                   fontWeight: FontWeight.w800,
                   color: Colors.black38, letterSpacing: 0.5)),
             )).toList(),
@@ -4263,6 +6659,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
   );
 
   TableRow _stepRow(ProtocolStep step, int i) {
+    final t = AppTheme(false); // forced light for report
     final isDone   = step.status == StepStatus.done;
     final isFailed = step.status == StepStatus.failed;
     final isPend   = step.status == StepStatus.pending;
@@ -4275,37 +6672,36 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
         : isPend ? 'SKIPPED'
         : 'PARTIAL';
     final bg = i.isOdd
-        ? Colors.white
-        : const Color(0xFFFAFAFA);
+        ? (Colors.white)
+        : (const Color(0xFFFAFAFA));
 
     return TableRow(
       decoration: BoxDecoration(color: bg),
       children: [
         // #
         Padding(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-            child: Text('${i+1}', style: const TextStyle(
+            child: Text('${i+1}', style: TextStyle(
                 fontSize: 10, color: Colors.black38))),
         // Icon
         Padding(padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Text(step.icon,
-                style: const TextStyle(fontSize: 13))),
+            child: const SizedBox.shrink()),
         // Title
         Padding(padding: const EdgeInsets.symmetric(
             horizontal: 10, vertical: 10),
-            child: Text(step.title, style: const TextStyle(
+            child: Text(step.title, style: TextStyle(
                 fontSize: 11, fontWeight: FontWeight.w600,
-                color: Color(0xFF1A1A2E)))),
+                color: const Color(0xFF1A1A2E)))),
         // QC note
         Padding(padding: const EdgeInsets.symmetric(
             horizontal: 10, vertical: 10),
-            child: Text(_qcNote(step.id), style: const TextStyle(
+            child: Text(_qcNote(step.id), style: TextStyle(
                 fontSize: 10, color: Colors.black45, height: 1.4))),
         // Duration
         Padding(padding: const EdgeInsets.symmetric(
             horizontal: 10, vertical: 10),
             child: Text(
               step.elapsedSeconds > 0 ? _fmt(step.elapsedSeconds) : '—',
-              style: const TextStyle(fontSize: 10,
+              style: TextStyle(fontSize: 10,
                   fontFamily: 'monospace', color: Colors.black45))),
         // Status chip
         Padding(
@@ -4352,21 +6748,21 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
           outcome == 'COMPLETED'
               ? 'Run completed successfully. All steps passed QC criteria.'
               : 'Run did not complete normally. Manual review required.',
-          style: const TextStyle(fontSize: 12,
-              fontWeight: FontWeight.w600, color: Color(0xFF1A1A2E))),
+          style: TextStyle(fontSize: 12,
+              fontWeight: FontWeight.w600, color: const Color(0xFF1A1A2E))),
         const SizedBox(height: 3),
         Text('Operator: $tech  ·  $dateStr',
-            style: const TextStyle(fontSize: 10, color: Colors.black38)),
+            style: TextStyle(fontSize: 10, color: Colors.black38)),
       ])),
     ]),
   );
 
   Widget _kv(String key, String val) => Column(
       crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(key, style: const TextStyle(fontSize: 9, color: Colors.black38,
+    Text(key, style: TextStyle(fontSize: 9, color: Colors.black38,
         fontWeight: FontWeight.w700, letterSpacing: 0.4)),
     const SizedBox(height: 3),
-    Text(val, style: const TextStyle(fontSize: 12,
-        fontWeight: FontWeight.w600, color: Color(0xFF1A1A2E))),
+    Text(val, style: TextStyle(fontSize: 12,
+        fontWeight: FontWeight.w600, color: const Color(0xFF1A1A2E))),
   ]);
 }
