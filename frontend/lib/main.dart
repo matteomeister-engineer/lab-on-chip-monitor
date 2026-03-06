@@ -1719,7 +1719,7 @@ class _MainDashboardState extends State<MainDashboard> {
               ),
             ]),
             const SizedBox(width: 6),
-            Icon(Icons.swap_horiz, size: 13, color: themeNotifier.dark ? AppColors.darkSecondary : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF1A3A6E))),
+            Icon(Icons.swap_horiz, size: 13, color: themeNotifier.dark ? AppColors.darkPrimary : const Color(0xFF1A3A6E)),
           ]),
         ),
       ),
@@ -2014,6 +2014,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
   Future<void> _fetch() async {
     try {
       final r = await http.get(Uri.parse(_url));
+      if (!mounted) return;
       if (r.statusCode == 200) {
         final d = json.decode(r.body) as Map<String, dynamic>;
         setState(() {
@@ -2032,6 +2033,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
         });
       }
     } catch (_) {
+      if (!mounted) return;
       setState(() { _connected = false; _status = 'Disconnected'; });
     }
   }
@@ -2451,7 +2453,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
             child: history.length < 2
                 ? Center(child: Text('...', style: TextStyle(
                     color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12, fontSize: compact ? 9 : 11)))
-                : LineChart(_sparkline(history, col)),
+                : LineChart(_sparkline(history, col, target: target, unit: unit)),
           ),
         ],
 
@@ -2615,23 +2617,126 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
     widget.onTargetsChanged({key: v.clamp(bounds.$1, bounds.$2)});
   }
 
-  LineChartData _sparkline(List<double> data, Color color) {
+  LineChartData _sparkline(List<double> data, Color color,
+      {double target = 0, String unit = ''}) {
     final spots = data.asMap().entries
         .map((e) => FlSpot(e.key.toDouble(), e.value)).toList();
-    final minY = data.reduce((a, b) => a < b ? a : b) - 0.1;
-    final maxY = data.reduce((a, b) => a > b ? a : b) + 0.1;
+
+    // Smart zoom: center on target with ±50% below and +20% above
+    final dataMin = data.reduce((a, b) => a < b ? a : b);
+    final dataMax = data.reduce((a, b) => a > b ? a : b);
+    final ref = target > 0 ? target : ((dataMin + dataMax) / 2).clamp(0.001, double.infinity);
+    final zoomMin = ref * 0.50;
+    final zoomMax = ref * 1.20;
+    final rawMin = (zoomMin < dataMin ? zoomMin : dataMin * 0.98);
+    final rawMax = (zoomMax > dataMax ? zoomMax : dataMax * 1.02);
+    // Guard: ensure minY < maxY with at least a small range
+    final minY = rawMin;
+    final maxY = rawMax > rawMin ? rawMax : rawMin + (ref * 0.1).abs().clamp(0.1, double.infinity);
+    final yRange = (maxY - minY).clamp(0.001, double.infinity);
+
+    final t = themeNotifier.theme;
+    final gridColor = t.dark ? AppColors.darkBorder : Colors.black.withOpacity(0.06);
+    final labelStyle = TextStyle(
+      fontSize: 8,
+      color: t.dark ? AppColors.darkMuted : Colors.black38,
+      fontFamily: 'monospace',
+    );
+
+    // Pick a clean step size so all grid labels are round numbers
+    // e.g. for range 18–40: step=5 → labels 20, 25, 30, 35, 40
+    double pickStep(double range) {
+      const steps = <double>[0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 25, 50, 100];
+      // Aim for ~4 intervals
+      final ideal = range / 4;
+      return steps.firstWhere((s) => s >= ideal, orElse: () => 100.0);
+    }
+    final step = pickStep(yRange);
+    // Snap minY/maxY to multiples of step
+    final snapMin = (minY / step).floor() * step;
+    final snapMax = (maxY / step).ceil()  * step;
+    // Build explicit label list: every step from snapMin to snapMax
+    final labels = <double>[];
+    double v = snapMin;
+    while (v <= snapMax + step * 0.01) {
+      labels.add(double.parse(v.toStringAsFixed(6)));
+      v += step;
+    }
+    final labelInterval = step;
+
+    String fmtY(double v) {
+      if (step >= 10)   return v.toStringAsFixed(0);
+      if (step >= 1)    return v.toStringAsFixed(1);
+      return v.toStringAsFixed(2);
+    }
+
     return LineChartData(
-      minY: minY, maxY: maxY,
+      minY: snapMin, maxY: snapMax,
       minX: spots.first.x, maxX: spots.last.x,
-      lineTouchData: LineTouchData(enabled: false),
-      gridData: FlGridData(show: false),
-      borderData: FlBorderData(show: false),
-      titlesData: FlTitlesData(
-        leftTitles:   AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        rightTitles:  AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        topTitles:    AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+
+      // ── Tooltip on hover ──
+      lineTouchData: LineTouchData(
+        enabled: true,
+        touchTooltipData: LineTouchTooltipData(
+          getTooltipColor: (_) => t.dark ? AppColors.darkElevated : Colors.white,
+          tooltipRoundedRadius: 8,
+          tooltipBorder: BorderSide(color: color.withOpacity(0.4), width: 1),
+          tooltipPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          getTooltipItems: (spots) => spots.map((s) => LineTooltipItem(
+            '${s.y.toStringAsFixed(s.y.abs() < 10 ? 2 : 1)} $unit',
+            TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+              fontFamily: 'monospace',
+            ),
+          )).toList(),
+        ),
+        getTouchedSpotIndicator: (bar, idxs) => idxs.map((i) =>
+          TouchedSpotIndicatorData(
+            FlLine(color: color.withOpacity(0.5), strokeWidth: 1,
+                dashArray: [4, 3]),
+            FlDotData(show: true, getDotPainter: (_, __, ___, ____) =>
+              FlDotCirclePainter(
+                radius: 4,
+                color: color,
+                strokeWidth: 2,
+                strokeColor: t.dark ? AppColors.darkCard : Colors.white,
+              )),
+          )).toList(),
       ),
+
+      // ── Grid ──
+      gridData: FlGridData(
+        show: true,
+        drawVerticalLine: false,
+        horizontalInterval: labelInterval,
+        getDrawingHorizontalLine: (_) => FlLine(
+          color: gridColor, strokeWidth: 1),
+      ),
+
+      // ── No border lines ──
+      borderData: FlBorderData(show: false),
+
+      // ── Y labels only: min and max rounded ──
+      titlesData: FlTitlesData(
+        topTitles:    AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        rightTitles:  AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        leftTitles: AxisTitles(sideTitles: SideTitles(
+          showTitles: true,
+          reservedSize: 28,
+          interval: labelInterval,
+          getTitlesWidget: (v, meta) {
+            // Only show if v is close to one of our clean label values
+            final isLabel = labels.any((l) => (l - v).abs() < labelInterval * 0.1);
+            if (!isLabel) return const SizedBox.shrink();
+            return Text(fmtY(v), style: labelStyle, textAlign: TextAlign.right);
+          },
+        )),
+      ),
+
+      // ── Line ──
       lineBarsData: [LineChartBarData(
         spots: spots,
         isCurved: true,
@@ -2641,7 +2746,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
         dotData: FlDotData(show: false),
         belowBarData: BarAreaData(show: true, gradient: LinearGradient(
           begin: Alignment.topCenter, end: Alignment.bottomCenter,
-          colors: [color.withOpacity(themeNotifier.dark ? 0.35 : 0.2), color.withOpacity(0.0)],
+          colors: [color.withOpacity(t.dark ? 0.25 : 0.15), color.withOpacity(0.0)],
         )),
       )],
     );
@@ -6531,7 +6636,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
             padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
             decoration: BoxDecoration(
               border: Border(
-                  top: BorderSide(color: Colors.black.withOpacity(0.07))),
+                  top: BorderSide(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black.withOpacity(0.07))),
             ),
             child: Row(children: [
               if (_exportedPath != null) ...[
