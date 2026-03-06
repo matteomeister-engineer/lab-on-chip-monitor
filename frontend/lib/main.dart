@@ -16,6 +16,16 @@ import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// ── Backend Configuration ─────────────────────────────────────────────────
+// Update these two URLs when migrating hosting providers
+class _BackendConfig {
+  static const String sensorUrl = 'https://sensor-sfdc.onrender.com';
+  static const String cellUrl   = 'https://cell-dsvm.onrender.com';
+}
+// ─────────────────────────────────────────────────────────────────────────
+
+
+
 
 
 // Desktop-only: trust self-signed certs (not needed on web — browser handles HTTPS)
@@ -1367,7 +1377,7 @@ class _MainDashboardState extends State<MainDashboard> {
   Timer? _revealTimer;
   final List<String> _auditLog = [];
 
-  static const String _backendUrl = 'https://therame-simulator-production.up.railway.app';
+  static const String _backendUrl = _BackendConfig.sensorUrl;
 
   // ── Targets (survive tab switches) ──────────────────────────────────────
   final Map<String, double> targets = {
@@ -1986,7 +1996,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
   // Timestamped rows for CSV export
   final List<Map<String, dynamic>> _exportLog = [];
 
-  final String _url = 'https://therame-simulator-production.up.railway.app/api/environment';
+  final String _url = '${_BackendConfig.sensorUrl}/api/environment';
 
   @override
   void initState() { super.initState(); _start(); }
@@ -3375,7 +3385,7 @@ class _OncologyPanelState extends State<OncologyPanel> {
   bool _exportingReport = false;
   String _status = 'Idle';
   int? _selectedWell;
-  final String _url = 'https://therame-simulator-production-8370.up.railway.app/api/analyze';
+  final String _url = '${_BackendConfig.cellUrl}/api/analyze';
 
   @override
   void initState() { super.initState(); if (widget.unlocked) _analyze(); }
