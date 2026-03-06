@@ -44,3 +44,17 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 *.iml
+
+# Flutter build output
+build/
+
+# Dart tool cache
+.dart_tool/
+
+# IDE
+.idea/
+.metadata
+.flutter-plugins-dependencies
+
+# DMG artifacts
+*.dmg
