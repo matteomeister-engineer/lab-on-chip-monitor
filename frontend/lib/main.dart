@@ -97,15 +97,20 @@ class AppColors {
   static const lightSubtext    = Color(0xFF666666);
   static const lightMuted      = Color(0xFF9E9E9E);
 
-  // Dark mode surfaces
-  static const darkBg          = Color(0xFF101022);
-  static const darkCard        = Color(0xFF1E1E35);
-  static const darkSurface     = Color(0xFF161628);
-  static const darkElevated    = Color(0xFF252540);
-  static const darkBorder      = Color(0x28FFFFFF);
-  static const darkText        = Color(0xFFEEEEFF);
-  static const darkSubtext     = Color(0xFF8888AA);
-  static const darkMuted       = Color(0xFF555577);
+  // Dark mode surfaces — Material Design dark theme
+  static const darkBg          = Color(0xFF121212); // Background
+  static const darkCard        = Color(0xFF1E1E1E); // Surface elevated +1
+  static const darkSurface     = Color(0xFF121212); // Surface
+  static const darkElevated    = Color(0xFF2C2C2C); // Surface elevated +2
+  static const darkBorder      = Color(0x1FFFFFFF); // subtle white border
+  static const darkText        = Color(0xFFFFFFFF); // On Background / On Surface
+  static const darkSubtext     = Color(0xB3FFFFFF); // 70% white
+  static const darkMuted       = Color(0x61FFFFFF); // 38% white
+  // Material dark accent colors
+  static const darkPrimary     = Color(0xFFBB86FC); // Primary
+  static const darkPrimaryVar  = Color(0xFF3700B3); // Primary Variant
+  static const darkSecondary   = Color(0xFF03DAC6); // Secondary (teal)
+  static const darkError       = Color(0xFFCF6679); // Error
 }
 
 class AppTheme {
@@ -303,7 +308,7 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   Widget build(BuildContext context) {
     final t = themeNotifier.theme;
-    final titleCol  = t.dark ? AppColors.mint   : AppColors.purple;
+    final titleCol  = t.dark ? AppColors.darkPrimary : AppColors.purple;
     final versionCol = t.dark ? AppColors.darkMuted : AppColors.purple;
     return Scaffold(
       backgroundColor: t.dark ? AppColors.darkBg : AppColors.loginBg,
@@ -413,11 +418,11 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(t.dark ? Icons.dark_mode : Icons.light_mode,
-                      size: 13, color: t.dark ? AppColors.amber : AppColors.purple),
+                      size: 13, color: t.dark ? AppColors.darkPrimary : AppColors.purple),
                   const SizedBox(width: 5),
                   Text(t.dark ? 'Dark' : 'Light',
                       style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
-                          color: t.dark ? AppColors.amber : AppColors.purple)),
+                          color: t.dark ? AppColors.darkPrimary : AppColors.purple)),
                 ]),
               ),
             ),
@@ -599,10 +604,10 @@ class _PatientSelectScreenState extends State<PatientSelectScreen> {
                         border: Border.all(color: themeNotifier.dark ? AppColors.mint.withOpacity(0.4) : const Color(0xFF170345).withOpacity(0.2)),
                       ),
                       child: Row(children: [
-                        Icon(Icons.qr_code_scanner, size: 15, color: themeNotifier.dark ? AppColors.mint : const Color(0xFF170345)),
+                        Icon(Icons.qr_code_scanner, size: 15, color: themeNotifier.dark ? AppColors.darkSecondary : const Color(0xFF170345)),
                         const SizedBox(width: 7),
                         Text('Add Patient', style: TextStyle(fontSize: 12,
-                            fontWeight: FontWeight.w600, color: themeNotifier.dark ? AppColors.mint : const Color(0xFF170345))),
+                            fontWeight: FontWeight.w600, color: themeNotifier.dark ? AppColors.darkSecondary : const Color(0xFF170345))),
                       ]),
                     ),
                   ),
@@ -680,7 +685,7 @@ class _PatientSelectScreenState extends State<PatientSelectScreen> {
               color: AppColors.purple.withOpacity(themeNotifier.dark ? 0.25 : 0.08),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(Icons.person, color: themeNotifier.dark ? AppColors.mint : AppColors.purple, size: 26),
+            child: Icon(Icons.person, color: themeNotifier.dark ? AppColors.darkSecondary : AppColors.purple, size: 26),
           ),
           const SizedBox(width: 16),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -697,7 +702,7 @@ class _PatientSelectScreenState extends State<PatientSelectScreen> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text('NEW', style: TextStyle(fontSize: 8,
-                      fontWeight: FontWeight.w800, color: themeNotifier.dark ? AppColors.mint : AppColors.purple)),
+                      fontWeight: FontWeight.w800, color: themeNotifier.dark ? AppColors.darkSecondary : AppColors.purple)),
                 ),
               ],
             ]),
@@ -1696,7 +1701,7 @@ class _MainDashboardState extends State<MainDashboard> {
             border: Border.all(color: const Color(0xFF1A3A6E).withOpacity(0.2)),
           ),
           child: Row(children: [
-            Icon(Icons.person, size: 14, color: themeNotifier.dark ? AppColors.mint : const Color(0xFF1A3A6E)),
+            Icon(Icons.person, size: 14, color: themeNotifier.dark ? AppColors.darkSecondary : const Color(0xFF1A3A6E)),
             const SizedBox(width: 6),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               // Always show patient ID
@@ -1714,7 +1719,7 @@ class _MainDashboardState extends State<MainDashboard> {
               ),
             ]),
             const SizedBox(width: 6),
-            Icon(Icons.swap_horiz, size: 13, color: themeNotifier.dark ? AppColors.mint : const Color(0xFF1A3A6E)),
+            Icon(Icons.swap_horiz, size: 13, color: themeNotifier.dark ? AppColors.darkSecondary : const Color(0xFF1A3A6E)),
           ]),
         ),
       ),
@@ -1795,11 +1800,11 @@ class _MainDashboardState extends State<MainDashboard> {
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(t.dark ? Icons.dark_mode : Icons.light_mode,
-                  size: 13, color: t.dark ? AppColors.amber : AppColors.purple),
+                  size: 13, color: t.dark ? AppColors.darkPrimary : AppColors.purple),
               const SizedBox(width: 5),
               Text(t.dark ? 'Dark' : 'Light',
                   style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
-                      color: t.dark ? AppColors.amber : AppColors.purple)),
+                      color: t.dark ? AppColors.darkPrimary : AppColors.purple)),
             ]),
           ),
         ),
@@ -1829,7 +1834,7 @@ class _MainDashboardState extends State<MainDashboard> {
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(children: [
-          Icon(Icons.receipt_long, size: 18, color: themeNotifier.dark ? AppColors.mint : const Color(0xFF1A3A6E)),
+          Icon(Icons.receipt_long, size: 18, color: themeNotifier.dark ? AppColors.darkSecondary : const Color(0xFF1A3A6E)),
           SizedBox(width: 8),
           Text('Audit Log', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         ]),
@@ -2409,7 +2414,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
                 borderRadius: BorderRadius.circular(4)),
             child: Text('TARGET',
                 style: TextStyle(fontSize: 7, fontWeight: FontWeight.w800,
-                    color: t.dark ? AppColors.mint : AppColors.purple)),
+                    color: t.dark ? AppColors.darkSecondary : AppColors.purple)),
           ),
         ]),
 
@@ -2530,7 +2535,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: const Color(0xFF1A3A6E).withOpacity(0.2)),
         ),
-        child: Icon(icon, size: compact ? 14 : 18, color: themeNotifier.dark ? AppColors.mint : const Color(0xFF1A3A6E)),
+        child: Icon(icon, size: compact ? 14 : 18, color: themeNotifier.dark ? AppColors.darkSecondary : const Color(0xFF1A3A6E)),
       ),
     );
   }
@@ -2544,7 +2549,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(children: [
-          Icon(Icons.tune, size: 16, color: themeNotifier.dark ? AppColors.mint : const Color(0xFF1A3A6E)),
+          Icon(Icons.tune, size: 16, color: themeNotifier.dark ? AppColors.darkSecondary : const Color(0xFF1A3A6E)),
           const SizedBox(width: 8),
           Text('Set $label Target',
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
@@ -2559,7 +2564,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700,
-                color: themeNotifier.dark ? AppColors.mint : const Color(0xFF1A3A6E)),
+                color: themeNotifier.dark ? AppColors.darkSecondary : const Color(0xFF1A3A6E)),
             decoration: InputDecoration(
               suffixText: unit,
               suffixStyle: TextStyle(fontSize: 13, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38),
@@ -2826,7 +2831,7 @@ class RunProtocolPanel extends StatelessWidget {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
             children: [
           Row(children: [
-            Icon(step.icon, size: 14, color: t.dark ? AppColors.mint : const Color(0xFF1A3A6E)),
+            Icon(step.icon, size: 14, color: t.dark ? AppColors.darkSecondary : const Color(0xFF1A3A6E)),
             const SizedBox(width: 5),
             Flexible(child: Text(step.title,
                 overflow: TextOverflow.ellipsis,
@@ -2890,7 +2895,7 @@ class RunProtocolPanel extends StatelessWidget {
 
         // Header row
         Row(children: [
-          Icon(step.icon, size: 28, color: t.dark ? AppColors.mint : const Color(0xFF1A3A6E)),
+          Icon(step.icon, size: 28, color: t.dark ? AppColors.darkSecondary : const Color(0xFF1A3A6E)),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -4895,7 +4900,7 @@ class _SessionHistoryDialogState extends State<SessionHistoryDialog> {
                                 child: Text(s.patientId,
                                     style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700,
                                         fontFamily: 'monospace',
-                                        color: t.dark ? AppColors.mint : AppColors.purple)),
+                                        color: t.dark ? AppColors.darkSecondary : AppColors.purple)),
                               ),
                               const SizedBox(width: 8),
                             ],
