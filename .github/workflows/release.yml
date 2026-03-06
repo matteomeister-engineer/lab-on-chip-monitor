@@ -249,6 +249,10 @@ jobs:
           [ -f assets/icon/icon.png ]      || touch assets/icon/icon.png
           [ -f assets/icon/icon_dark.png ] || touch assets/icon/icon_dark.png
 
+      - name: Create web project files
+        working-directory: frontend
+        run: flutter create --platforms=web . 2>/dev/null || true
+
       - name: Inject version from tag
         working-directory: frontend
         run: |
