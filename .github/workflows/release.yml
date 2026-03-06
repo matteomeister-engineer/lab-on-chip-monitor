@@ -1,56 +1,59 @@
----
 name: Build & Release
+
 on:
   push:
     tags:
-      - v*
+      - 'v*'
+
 jobs:
   build-macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.27.0
-          channel: stable
+          flutter-version: '3.27.0'
+          channel: 'stable'
+
       - name: Enable macOS desktop
         run: flutter config --enable-macos-desktop
+
       - name: Install dependencies
         working-directory: frontend
         run: flutter pub get
+
       - name: Create macOS project files
         working-directory: frontend
         run: flutter create --platforms=macos . 2>/dev/null || true
+
       - name: Create asset placeholders
         working-directory: frontend
-        run: >
+        run: |
           mkdir -p assets/icon
-
           [ -f assets/icon/icon.png ]      || cp macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_256.png assets/icon/icon.png      2>/dev/null || touch assets/icon/icon.png
-
           [ -f assets/icon/icon_dark.png ] || cp assets/icon/icon.png assets/icon/icon_dark.png
+
       - name: Inject version from tag
         working-directory: frontend
-        run: >
+        run: |
           TAG=${{ github.ref_name }}
-
           perl -i -pe "s|setState\(\(\) => _version = 'v[^']*'\);|setState(() => _version = '$TAG');|g" lib/main.dart
-
           echo "Version injected: $TAG"
+
       - name: Build macOS
         working-directory: frontend
         run: flutter build macos --release
+
       - name: Install create-dmg
         run: brew install create-dmg
+
       - name: Package as DMG
         working-directory: frontend
-        run: >
-          APP_PATH=$(find build/macos/Build/Products/Release -name '*.app' -maxdepth
-          1 | head -1)
-
+        run: |
+          APP_PATH=$(find build/macos/Build/Products/Release -name '*.app' -maxdepth 1 | head -1)
           echo "Found app: $APP_PATH"
-
           create-dmg \
             --volname "Lab-on-Chip Monitor" \
             --window-size 660 400 \
@@ -60,157 +63,232 @@ jobs:
             --hide-extension "Lab-on-Chip Monitor.app" \
             "Lab-on-Chip-Monitor-macOS.dmg" \
             "$APP_PATH"
+
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-dmg
           path: frontend/Lab-on-Chip-Monitor-macOS.dmg
+
   build-windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.27.0
-          channel: stable
+          flutter-version: '3.27.0'
+          channel: 'stable'
+
       - name: Install dependencies
         working-directory: frontend
         run: flutter pub get
+
       - name: Create asset placeholders
         working-directory: frontend
         shell: pwsh
-        run: >
+        run: |
           New-Item -ItemType Directory -Force -Path assets/icon | Out-Null
-
           if (-not (Test-Path assets/icon/icon.png))      { New-Item -ItemType File assets/icon/icon.png }
-
           if (-not (Test-Path assets/icon/icon_dark.png)) { Copy-Item assets/icon/icon.png assets/icon/icon_dark.png }
+
       - name: Inject version from tag
         working-directory: frontend
         shell: pwsh
-        run: >
+        run: |
           $tag = "${{ github.ref_name }}"
-
           $content = Get-Content lib/main.dart -Raw
-
           $content = $content -replace "setState\(\(\) => _version = 'v[^']*'\);", "setState(() => _version = '$tag');"
-
           Set-Content lib/main.dart $content
-
           Write-Host "Version injected: $tag"
-
           Select-String "_version" lib/main.dart
+
       - name: Build Windows
         working-directory: frontend
         run: flutter build windows --release
+
       - name: Zip Windows build
         working-directory: frontend/build/windows/x64/runner
-        run: Compress-Archive -Path Release -DestinationPath
-          Lab-on-Chip-Monitor-Windows.zip
+        run: Compress-Archive -Path Release -DestinationPath Lab-on-Chip-Monitor-Windows.zip
+
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-zip
           path: frontend/build/windows/x64/runner/Lab-on-Chip-Monitor-Windows.zip
+
   build-linux-x64:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Install system dependencies
-        run: >
+        run: |
           sudo apt-get update -y
-
           sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev curl git unzip xz-utils
-      - name: Install Flutter manually
-        run: >
-          git clone https://github.com/flutter/flutter.git --depth 1 -b 3.24.5
-          $HOME/flutter
 
+      - name: Install Flutter manually
+        run: |
+          git clone https://github.com/flutter/flutter.git --depth 1 -b 3.24.5 $HOME/flutter
           echo "$HOME/flutter/bin" >> $GITHUB_PATH
+
       - name: Enable Linux desktop
         run: $HOME/flutter/bin/flutter config --enable-linux-desktop
+
       - name: Install dependencies
         working-directory: frontend
         run: $HOME/flutter/bin/flutter pub get
+
       - name: Create Linux project files
         working-directory: frontend
         run: $HOME/flutter/bin/flutter create --platforms=linux . 2>/dev/null || true
+
       - name: Create asset placeholders
         working-directory: frontend
         run: |
           mkdir -p assets/icon
           [ -f assets/icon/icon.png ]      || touch assets/icon/icon.png
           [ -f assets/icon/icon_dark.png ] || touch assets/icon/icon_dark.png
+
       - name: Inject version from tag
         working-directory: frontend
-        run: >
+        run: |
           TAG=${{ github.ref_name }}
-
           sed -i "s/setState(() => _version = 'v[^']*');/setState(() => _version = '$TAG');/" lib/main.dart
+
       - name: Build Linux x64
         working-directory: frontend
         run: $HOME/flutter/bin/flutter build linux --release
+
       - name: Package as tar.gz
         working-directory: frontend/build/linux/x64/release
         run: tar -czf Lab-on-Chip-Monitor-Linux-x64.tar.gz bundle/
+
       - name: Upload Linux x64 artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-x64-tar
           path: frontend/build/linux/x64/release/Lab-on-Chip-Monitor-Linux-x64.tar.gz
+
   build-linux-arm64:
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
+
       - name: Install system dependencies
-        run: >
+        run: |
           sudo apt-get update -y
-
           sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev curl git unzip xz-utils
-      - name: Install Flutter manually
-        run: >
-          git clone https://github.com/flutter/flutter.git --depth 1 -b 3.19.6
-          $HOME/flutter
 
+      - name: Install Flutter manually
+        run: |
+          git clone https://github.com/flutter/flutter.git --depth 1 -b 3.19.6 $HOME/flutter
           echo "$HOME/flutter/bin" >> $GITHUB_PATH
+
       - name: Enable Linux desktop
         run: $HOME/flutter/bin/flutter config --enable-linux-desktop
+
       - name: Install dependencies
         working-directory: frontend
         run: $HOME/flutter/bin/flutter pub get
+
       - name: Create Linux project files
         working-directory: frontend
         run: $HOME/flutter/bin/flutter create --platforms=linux . 2>/dev/null || true
+
       - name: Create asset placeholders
         working-directory: frontend
         run: |
           mkdir -p assets/icon
           [ -f assets/icon/icon.png ]      || touch assets/icon/icon.png
           [ -f assets/icon/icon_dark.png ] || touch assets/icon/icon_dark.png
+
       - name: Inject version from tag
         working-directory: frontend
-        run: >
+        run: |
           TAG=${{ github.ref_name }}
-
           sed -i "s/setState(() => _version = 'v[^']*');/setState(() => _version = '$TAG');/" lib/main.dart
+
       - name: Build Linux ARM64
         working-directory: frontend
         run: $HOME/flutter/bin/flutter build linux --release
+
       - name: Package as tar.gz
         working-directory: frontend/build/linux/arm64/release
         run: tar -czf Lab-on-Chip-Monitor-Linux-arm64.tar.gz bundle/
+
       - name: Upload Linux arm64 artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-arm64-tar
           path: frontend/build/linux/arm64/release/Lab-on-Chip-Monitor-Linux-arm64.tar.gz
+
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.0'
+          channel: 'stable'
+
+      - name: Enable web
+        run: flutter config --enable-web
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: flutter pub get
+
+      - name: Create asset placeholders
+        working-directory: frontend
+        run: |
+          mkdir -p assets/icon
+          [ -f assets/icon/icon.png ]      || touch assets/icon/icon.png
+          [ -f assets/icon/icon_dark.png ] || touch assets/icon/icon_dark.png
+
+      - name: Inject version from tag
+        working-directory: frontend
+        run: |
+          TAG=${{ github.ref_name }}
+          perl -i -pe "s|setState\(\(\) => _version = 'v[^']*'\);|setState(() => _version = '$TAG');|g" lib/main.dart
+          echo "Version injected: $TAG"
+
+      - name: Build web
+        working-directory: frontend
+        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: frontend/build/web/
+
+  deploy-web:
+    needs: build-web
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    steps:
+      - name: Download web artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: web-build/
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: web-build/
+          commit_message: "deploy: web app ${{ github.ref_name }}"
+
   release:
-    needs:
-      - build-macos
-      - build-windows
-      - build-linux-x64
-      - build-linux-arm64
+    needs: [build-macos, build-windows, build-linux-x64, build-linux-arm64, build-web]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -219,62 +297,57 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: macos-dmg
+
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
           name: windows-zip
+
       - name: Download Linux x64 artifact
         uses: actions/download-artifact@v4
         with:
           name: linux-x64-tar
+
       - name: Download Linux arm64 artifact
         uses: actions/download-artifact@v4
         with:
           name: linux-arm64-tar
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Lab-on-Chip Monitor ${{ github.ref_name }}
-          body: >
+          name: "Lab-on-Chip Monitor ${{ github.ref_name }}"
+          body: |
             ## Lab-on-Chip Monitor ${{ github.ref_name }}
-
             *Built by Mattéo Meister — meister.matteo@outlook.com*
-
 
             ---
 
+            ### 🌐 Web App
+            **[▶ Launch in browser](https://matteomeister-engineer.github.io/lab-on-chip-monitor/)**
+            No installation needed — runs directly in Chrome, Firefox, Safari.
+
+            ---
 
             ### ⬇️ Download
-
             | Platform | File | Instructions |
-
             |---|---|---|
-
             | **macOS** | `Lab-on-Chip-Monitor-macOS.dmg` | Open → drag to Applications → right-click → Open |
-
             | **Windows** | `Lab-on-Chip-Monitor-Windows.zip` | Extract → run `lab_on_chip_monitor.exe` |
-
             | **Linux x64** | `Lab-on-Chip-Monitor-Linux-x64.tar.gz` | Extract → run `bundle/lab_on_chip_monitor` |
-
             | **Linux ARM64** | `Lab-on-Chip-Monitor-Linux-arm64.tar.gz` | For Apple Silicon UTM / ARM devices |
 
-
             ### ✅ Requirements
-
             No setup needed. No Docker. No terminal. Connects automatically to cloud backends.
-
 
             > **Login:** `admin` / `admin123`
 
-
             ### ⚠️ First launch
-
             Cloud backends may take **10–20 seconds to wake up**. If you see "Disconnected", wait a moment and they will connect automatically.
 
-
             ### 🍎 macOS Gatekeeper
-
             Right-click the app → **Open** → click **Open** in the dialog. You only need to do this once.
+
           files: |
             Lab-on-Chip-Monitor-macOS.dmg
             Lab-on-Chip-Monitor-Windows.zip
