@@ -4,7 +4,21 @@ A full-stack simulation of a **lab-on-chip medical device** for personalised can
 
 ---
 
+## 🌐 Try it online
+
+**No installation needed** — runs directly in your browser.
+
+👉 **[Launch Web App](https://matteomeister-engineer.github.io/lab-on-chip-monitor/)**
+
+> **Login:** `admin` / `admin123`
+
+> Cloud backends may take **10–20 seconds to wake up** on first load. If you see "Disconnected", wait a moment and the app will connect automatically.
+
+---
+
 ## Download
+
+Prefer a native desktop experience? Download the latest release below.
 
 👉 **[Latest Release](https://github.com/matteomeister-engineer/lab-on-chip-monitor/releases/latest)**
 
@@ -12,14 +26,12 @@ A full-stack simulation of a **lab-on-chip medical device** for personalised can
 |---|---|---|
 | **macOS** | `Lab-on-Chip-Monitor-macOS.dmg` | Open → drag app to Applications → right-click → Open |
 | **Windows** | `Lab-on-Chip-Monitor-Windows.zip` | Extract → run `lab_on_chip_monitor.exe` |
+| **Linux x64** | `Lab-on-Chip-Monitor-Linux-x64.tar.gz` | Extract → run `bundle/lab_on_chip_monitor` |
+| **Linux ARM64** | `Lab-on-Chip-Monitor-Linux-arm64.tar.gz` | For Apple Silicon UTM / ARM devices |
 
 > No setup needed. No Docker. No terminal. The app connects automatically to cloud backends.
 
-> **Login:** `admin` / `admin123`
-
 > **macOS:** Right-click the app → **Open** the first time to bypass Gatekeeper.
-
-> **First launch:** Cloud backends may take 10–20 seconds to wake up. If you see "Disconnected", wait a moment.
 
 ---
 
@@ -69,8 +81,8 @@ The app simulates a microfluidic lab-on-chip device that tests 20 cancer drugs o
 
 ```mermaid
 graph TB
-    subgraph Desktop["macOS / Windows"]
-        App["Flutter Desktop App"]
+    subgraph Desktop["macOS / Windows / Linux / Web"]
+        App["Flutter App"]
         P1["Environment Panel\npoll every 1s"]
         P2["Protocol Panel\n8-step state machine"]
         P3["Oncology Panel\nunlocks after imaging"]
@@ -123,11 +135,11 @@ sequenceDiagram
 
 | Layer | Technology |
 |---|---|
-| Frontend | Flutter (Dart), fl_chart, pdf, window_manager |
+| Frontend | Flutter (Dart) — desktop + web, fl_chart, pdf, window_manager |
 | Sensor backend | C++17, httplib, mean-reversion noise model |
 | Vision backend | C++17, OpenCV 4 — SimpleBlobDetector |
 | Deployment | Docker → Railway cloud |
-| CI/CD | GitHub Actions → .dmg + .exe releases |
+| CI/CD | GitHub Actions → .dmg + .exe + web (GitHub Pages) |
 
 ---
 
