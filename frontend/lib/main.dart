@@ -252,7 +252,7 @@ class _MedicalMonitorAppState extends State<MedicalMonitorApp> {
                 surface: AppColors.darkCard,
                 background: AppColors.darkBg,
               )
-            : ColorScheme.fromSeed(seedColor: const Color(0xFF1A3A6E)),
+            : ColorScheme.fromSeed(seedColor: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF1A3A6E))),
       ),
       home: const LoginScreen(),
     );
@@ -383,7 +383,7 @@ class _LoginScreenState extends State<LoginScreen>
                   child: ElevatedButton(
                     onPressed: _login,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.purple,
+                      backgroundColor: themeNotifier.dark ? AppColors.darkPrimary : AppColors.purple,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -599,15 +599,15 @@ class _PatientSelectScreenState extends State<PatientSelectScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
-                        color: themeNotifier.dark ? AppColors.mint.withOpacity(0.12) : const Color(0xFF170345).withOpacity(0.07),
+                        color: themeNotifier.dark ? AppColors.mint.withOpacity(0.12) : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)).withOpacity(0.07),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: themeNotifier.dark ? AppColors.mint.withOpacity(0.4) : const Color(0xFF170345).withOpacity(0.2)),
+                        border: Border.all(color: themeNotifier.dark ? AppColors.mint.withOpacity(0.4) : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)).withOpacity(0.2)),
                       ),
                       child: Row(children: [
-                        Icon(Icons.qr_code_scanner, size: 15, color: themeNotifier.dark ? AppColors.darkSecondary : const Color(0xFF170345)),
+                        Icon(Icons.qr_code_scanner, size: 15, color: themeNotifier.dark ? AppColors.darkSecondary : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345))),
                         const SizedBox(width: 7),
                         Text('Add Patient', style: TextStyle(fontSize: 12,
-                            fontWeight: FontWeight.w600, color: themeNotifier.dark ? AppColors.darkSecondary : const Color(0xFF170345))),
+                            fontWeight: FontWeight.w600, color: themeNotifier.dark ? AppColors.darkSecondary : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)))),
                       ]),
                     ),
                   ),
@@ -682,16 +682,16 @@ class _PatientSelectScreenState extends State<PatientSelectScreen> {
           Container(
             width: 48, height: 48,
             decoration: BoxDecoration(
-              color: AppColors.purple.withOpacity(themeNotifier.dark ? 0.25 : 0.08),
+              color: (themeNotifier.dark ? AppColors.darkPrimary : AppColors.purple).withOpacity(themeNotifier.dark ? 0.15 : 0.08),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(Icons.person, color: themeNotifier.dark ? AppColors.darkSecondary : AppColors.purple, size: 26),
+            child: Icon(Icons.person, color: themeNotifier.dark ? AppColors.darkPrimary : AppColors.purple, size: 26),
           ),
           const SizedBox(width: 16),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Text(p['id']!, style: TextStyle(fontSize: 15,
-                  fontWeight: FontWeight.w700, color: themeNotifier.dark ? AppColors.darkText : const Color(0xFF1A1A2E),
+                  fontWeight: FontWeight.w700, color: themeNotifier.dark ? AppColors.darkText : (themeNotifier.dark ? AppColors.darkCard : Color(0xFF1A1A2E)),
                   fontFamily: 'monospace')),
               if (isNew) ...[
                 const SizedBox(width: 8),
@@ -702,7 +702,7 @@ class _PatientSelectScreenState extends State<PatientSelectScreen> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text('NEW', style: TextStyle(fontSize: 8,
-                      fontWeight: FontWeight.w800, color: themeNotifier.dark ? AppColors.darkSecondary : AppColors.purple)),
+                      fontWeight: FontWeight.w800, color: themeNotifier.dark ? AppColors.darkPrimary : AppColors.purple)),
                 ),
               ],
             ]),
@@ -724,32 +724,32 @@ class _ScannerHintBar extends StatelessWidget {
   final String? error;
   final VoidCallback onManualTap;
   final VoidCallback onFocus;
-  const _ScannerHintBar({required this.scanning, required this.error,
+  _ScannerHintBar({required this.scanning, required this.error,
       required this.onManualTap, required this.onFocus});
 
   @override
   Widget build(BuildContext context) {
     if (scanning) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF170345).withOpacity(0.05),
+          color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)).withOpacity(0.05),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF170345).withOpacity(0.2)),
+          border: Border.all(color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)).withOpacity(0.2)),
         ),
         child: Row(children: [
-          const SizedBox(width: 14, height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF170345))),
-          const SizedBox(width: 12),
-          const Expanded(child: Text('Querying HL7 FHIR database…',
-              style: TextStyle(fontSize: 12, color: Color(0xFF170345),
+          SizedBox(width: 14, height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)))),
+          SizedBox(width: 12),
+          Expanded(child: Text('Querying HL7 FHIR database…',
+              style: TextStyle(fontSize: 12, color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)),
                   fontWeight: FontWeight.w600))),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-            decoration: BoxDecoration(color: const Color(0xFF170345).withOpacity(0.1),
+            padding: EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(4)),
-            child: const Text('FHIR R4', style: TextStyle(fontSize: 8,
-                fontWeight: FontWeight.w800, color: Color(0xFF170345))),
+            child: Text('FHIR R4', style: TextStyle(fontSize: 8,
+                fontWeight: FontWeight.w800, color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)))),
           ),
         ]),
       );
@@ -764,13 +764,13 @@ class _ScannerHintBar extends StatelessWidget {
         ),
         child: Row(children: [
           const Icon(Icons.error_outline, size: 15, color: Color(0xFFEF5350)),
-          const SizedBox(width: 10),
-          Expanded(child: Text(error!, style: const TextStyle(
+          SizedBox(width: 10),
+          Expanded(child: Text(error!, style: TextStyle(
               fontSize: 12, color: Color(0xFFEF5350)))),
           GestureDetector(
             onTap: onManualTap,
-            child: const Text('Try again', style: TextStyle(fontSize: 11,
-                fontWeight: FontWeight.w700, color: Color(0xFF170345),
+            child: Text('Try again', style: TextStyle(fontSize: 11,
+                fontWeight: FontWeight.w700, color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)),
                 decoration: TextDecoration.underline)),
           ),
         ]),
@@ -888,15 +888,15 @@ class _ManualBarcodeDialogState extends State<_ManualBarcodeDialog>
           color: t.card,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(t.dark ? 0.45 : 0.2),
-              blurRadius: 40, offset: const Offset(0, 12))],
+              blurRadius: 40, offset: Offset(0, 12))],
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
 
           // ── Header ──
           Container(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-            decoration: const BoxDecoration(
-              color: Color(0xFF170345),
+            padding: EdgeInsets.fromLTRB(24, 20, 24, 0),
+            decoration: BoxDecoration(
+              color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)),
               borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),
             child: Column(children: [
@@ -923,7 +923,7 @@ class _ManualBarcodeDialogState extends State<_ManualBarcodeDialog>
                 ),
                 child: TabBar(
                   controller: _tabs,
-                  labelColor: const Color(0xFF170345),
+                  labelColor: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)),
                   unselectedLabelColor: Colors.white54,
                   labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                   unselectedLabelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
@@ -965,40 +965,40 @@ class _ManualBarcodeDialogState extends State<_ManualBarcodeDialog>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: const Color(0xFF388BFF).withOpacity(0.08),
+            color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)).withOpacity(0.08),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFF388BFF).withOpacity(0.2)),
+            border: Border.all(color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)).withOpacity(0.2)),
           ),
-          child: const Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.local_hospital_outlined, size: 13, color: Color(0xFF388BFF)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.local_hospital_outlined, size: 13, color: themeNotifier.dark ? AppColors.darkPrimary : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF))),
             SizedBox(width: 6),
             Text('HL7 FHIR R4  ·  Patient lookup',
-                style: TextStyle(fontSize: 11, color: Color(0xFF388BFF),
+                style: TextStyle(fontSize: 11, color: themeNotifier.dark ? AppColors.darkPrimary : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)),
                     fontWeight: FontWeight.w600)),
           ]),
         ),
         const SizedBox(height: 16),
         Text('Patient Barcode / ID', style: TextStyle(fontSize: 11,
             fontWeight: FontWeight.w700, color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black45, letterSpacing: 0.5)),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         TextField(
           controller: _barcodeCtrl,
           focusNode: _barcodeFocus,
           onSubmitted: (v) { if (v.trim().isNotEmpty) widget.onSubmit(v.trim()); },
-          style: const TextStyle(fontSize: 15, fontFamily: 'monospace',
+          style: TextStyle(fontSize: 15, fontFamily: 'monospace',
               fontWeight: FontWeight.w700),
           decoration: InputDecoration(
             hintText: 'e.g. PAT2024004',
             hintStyle: TextStyle(color: themeNotifier.dark ? AppColors.darkMuted : Colors.black26,
                 fontWeight: FontWeight.normal, fontFamily: 'monospace'),
-            prefixIcon: const Icon(Icons.qr_code_2, color: Color(0xFF170345), size: 20),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            prefixIcon: Icon(Icons.qr_code_2, color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)), size: 20),
+            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFF170345), width: 1.5)),
+                borderSide: BorderSide(color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)), width: 1.5)),
           ),
         ),
         const SizedBox(height: 12),
@@ -1015,7 +1015,7 @@ class _ManualBarcodeDialogState extends State<_ManualBarcodeDialog>
             },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: themeNotifier.dark ? AppColors.darkSurface : const Color(0xFFF3F3F3),
+              decoration: BoxDecoration(color: themeNotifier.dark ? AppColors.darkSurface : Color(0xFFF3F3F3),
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
               child: Text(k, style: const TextStyle(fontSize: 10,
@@ -1038,7 +1038,7 @@ class _ManualBarcodeDialogState extends State<_ManualBarcodeDialog>
             icon: const Icon(Icons.search, size: 15),
             label: const Text('Lookup Patient'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF170345),
+              backgroundColor: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 13),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1124,7 +1124,7 @@ class _ManualBarcodeDialogState extends State<_ManualBarcodeDialog>
               icon: const Icon(Icons.person_add_outlined, size: 15),
               label: const Text('Add Patient'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF170345),
+                backgroundColor: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1156,18 +1156,18 @@ class _ManualBarcodeDialogState extends State<_ManualBarcodeDialog>
         hintText: hint,
         hintStyle: TextStyle(fontSize: 12, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black26),
         labelStyle: TextStyle(fontSize: 12, color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black45),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 11),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Color(0xFF170345), width: 1.5)),
+            borderSide: BorderSide(color: themeNotifier.dark ? AppColors.darkPrimary : const Color(0xFF170345), width: 1.5)),
         errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
             borderSide: const BorderSide(color: Color(0xFFEF5350))),
         focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
             borderSide: const BorderSide(color: Color(0xFFEF5350), width: 1.5)),
-        errorStyle: const TextStyle(fontSize: 9),
+        errorStyle: TextStyle(fontSize: 9),
       ),
     );
   }
@@ -1176,17 +1176,17 @@ class _ManualBarcodeDialogState extends State<_ManualBarcodeDialog>
     return DropdownButtonFormField<String>(
       value: _gender,
       onChanged: (v) => setState(() => _gender = v ?? 'unknown'),
-      style: TextStyle(fontSize: 13, color: themeNotifier.dark ? AppColors.darkText : const Color(0xFF1A1A2E)),
+      style: TextStyle(fontSize: 13, color: themeNotifier.dark ? AppColors.darkText : (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E))),
       decoration: InputDecoration(
         labelText: 'Gender',
         labelStyle: TextStyle(fontSize: 12, color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black45),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 11),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Color(0xFF170345), width: 1.5)),
+            borderSide: BorderSide(color: themeNotifier.dark ? AppColors.darkPrimary : const Color(0xFF170345), width: 1.5)),
       ),
       items: const [
         DropdownMenuItem(value: 'male',    child: Text('Male')),
@@ -1214,29 +1214,29 @@ class _FhirPreviewDialog extends StatelessWidget {
           color: t.card,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(t.dark ? 0.45 : 0.2),
-              blurRadius: 40, offset: const Offset(0, 12))],
+              blurRadius: 40, offset: Offset(0, 12))],
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Container(
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(
-              color: Color(0xFF170345),
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)),
               borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),
             child: Row(children: [
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF388BFF).withOpacity(0.2),
+                  color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)).withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.local_hospital_outlined,
-                    color: Color(0xFF388BFF), size: 18),
+                child: Icon(Icons.local_hospital_outlined,
+                    color: themeNotifier.dark ? AppColors.darkPrimary : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)), size: 18),
               ),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('HL7 FHIR Patient Record',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: themeNotifier.dark ? AppColors.darkCard : Colors.white)),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
                 Text('resourceType: Patient  ·  R4',
                     style: TextStyle(fontSize: 10, color: Colors.white38, fontFamily: 'monospace')),
               ])),
@@ -1247,7 +1247,7 @@ class _FhirPreviewDialog extends StatelessWidget {
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(color: const Color(0xFF26C6A0).withOpacity(0.5)),
                 ),
-                child: const Text('200 OK', style: TextStyle(fontSize: 9,
+                child: Text('200 OK', style: TextStyle(fontSize: 9,
                     fontWeight: FontWeight.w800, color: Color(0xFF26C6A0),
                     fontFamily: 'monospace')),
               ),
@@ -1257,26 +1257,26 @@ class _FhirPreviewDialog extends StatelessWidget {
             padding: const EdgeInsets.all(24),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Container(
-                padding: const EdgeInsets.all(18),
+                padding: EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: themeNotifier.dark ? AppColors.darkElevated : const Color(0xFFF8F9FF),
+                  color: themeNotifier.dark ? AppColors.darkElevated : Color(0xFFF8F9FF),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFF170345).withOpacity(0.15)),
+                  border: Border.all(color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)).withOpacity(0.15)),
                 ),
                 child: Column(children: [
                   Row(children: [
                     Container(
                       width: 52, height: 52,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF170345).withOpacity(0.08),
+                        color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)).withOpacity(0.08),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: const Icon(Icons.person_outlined, color: Color(0xFF170345), size: 28),
+                      child: Icon(Icons.person_outlined, color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)), size: 28),
                     ),
                     const SizedBox(width: 16),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(patient['id']!, style: const TextStyle(fontSize: 16,
-                          fontWeight: FontWeight.w800, color: Color(0xFF1A1A2E),
+                      Text(patient['id']!, style: TextStyle(fontSize: 16,
+                          fontWeight: FontWeight.w800, color: themeNotifier.dark ? AppColors.darkText : (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E)),
                           fontFamily: 'monospace')),
                       const SizedBox(height: 2),
                       Text(patient['pseudo']!, style: TextStyle(
@@ -1336,7 +1336,7 @@ class _FhirPreviewDialog extends StatelessWidget {
                   icon: const Icon(Icons.check_circle_outline, size: 16),
                   label: const Text('Confirm & Open Session'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF170345),
+                    backgroundColor: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 13),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1358,7 +1358,7 @@ class _FhirPreviewDialog extends StatelessWidget {
             fontFamily: 'monospace', fontWeight: FontWeight.w600, letterSpacing: 0.3)),
         const SizedBox(height: 3),
         Text(value, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-            color: themeNotifier.dark ? AppColors.darkText : const Color(0xFF1A1A2E)), overflow: TextOverflow.ellipsis),
+            color: themeNotifier.dark ? AppColors.darkText : (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E))), overflow: TextOverflow.ellipsis),
       ]),
     );
   }
@@ -1671,7 +1671,7 @@ class _MainDashboardState extends State<MainDashboard> {
                      : _runStatus == ProtocolStatus.paused  ? 'PAUSED'
                      : null,
                 badgeColor: _runStatus == ProtocolStatus.running
-                     ? const Color(0xFF388BFF)
+                     ? (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF))
                      : const Color(0xFFFFA726)),
             _tabBtn('🔬  Oncology',    2,
                 badge: !_oncologyUnlocked && _runStatus != ProtocolStatus.idle
@@ -1696,18 +1696,18 @@ class _MainDashboardState extends State<MainDashboard> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: const Color(0xFF1A3A6E).withOpacity(0.08),
+            color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF1A3A6E)).withOpacity(0.08),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFF1A3A6E).withOpacity(0.2)),
+            border: Border.all(color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF1A3A6E)).withOpacity(0.2)),
           ),
           child: Row(children: [
-            Icon(Icons.person, size: 14, color: themeNotifier.dark ? AppColors.darkSecondary : const Color(0xFF1A3A6E)),
+            Icon(Icons.person, size: 14, color: themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF1A3A6E)),
             const SizedBox(width: 6),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               // Always show patient ID
               Text(widget.patient['id']!,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
-                      color: Color(0xFF1A3A6E), fontFamily: 'monospace')),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                      color: themeNotifier.dark ? AppColors.darkText : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF1A3A6E)), fontFamily: 'monospace')),
               // Pseudonymised name only when revealed
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
@@ -1719,7 +1719,7 @@ class _MainDashboardState extends State<MainDashboard> {
               ),
             ]),
             const SizedBox(width: 6),
-            Icon(Icons.swap_horiz, size: 13, color: themeNotifier.dark ? AppColors.darkSecondary : const Color(0xFF1A3A6E)),
+            Icon(Icons.swap_horiz, size: 13, color: themeNotifier.dark ? AppColors.darkSecondary : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF1A3A6E))),
           ]),
         ),
       ),
@@ -1834,7 +1834,7 @@ class _MainDashboardState extends State<MainDashboard> {
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(children: [
-          Icon(Icons.receipt_long, size: 18, color: themeNotifier.dark ? AppColors.darkSecondary : const Color(0xFF1A3A6E)),
+          Icon(Icons.receipt_long, size: 18, color: themeNotifier.dark ? AppColors.darkSecondary : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF1A3A6E))),
           SizedBox(width: 8),
           Text('Audit Log', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         ]),
@@ -1850,7 +1850,7 @@ class _MainDashboardState extends State<MainDashboard> {
                   itemBuilder: (_, i) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     child: Row(children: [
-                      const Icon(Icons.lock_open, size: 13, color: Color(0xFFFFA726)),
+                      Icon(Icons.lock_open, size: 13, color: themeNotifier.dark ? AppColors.darkPrimary : Color(0xFFFFA726)),
                       const SizedBox(width: 8),
                       Expanded(child: Text(_auditLog[i],
                           style: const TextStyle(fontSize: 12, color: Colors.black54,
@@ -2037,10 +2037,11 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
   }
 
   Color _alarmColor(String alarm) {
+    final isDark = themeNotifier.dark;
     switch (alarm) {
       case 'critical': return const Color(0xFFEF5350);
       case 'warning':  return const Color(0xFFFFA726);
-      default:         return const Color(0xFF26C6A0);
+      default:         return isDark ? AppColors.darkPrimary : const Color(0xFF26C6A0);
     }
   }
 
@@ -2131,7 +2132,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Exported ${_exportLog.length} rows → $result'),
-          backgroundColor: const Color(0xFF388BFF),
+          backgroundColor: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)),
         ));
       }
     } catch (e) {
@@ -2181,8 +2182,8 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
             GestureDetector(
               onTap: _exporting ? null : _exportCsv,
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                duration: Duration(milliseconds: 200),
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
                   color: themeNotifier.dark ? AppColors.darkCard : Colors.white,
                   borderRadius: BorderRadius.circular(20),
@@ -2190,16 +2191,16 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
                 ),
                 child: Row(children: [
                   _exporting
-                    ? const SizedBox(width: 12, height: 12,
+                    ? SizedBox(width: 12, height: 12,
                         child: CircularProgressIndicator(strokeWidth: 2,
-                            color: Color(0xFF388BFF)))
-                    : const Icon(Icons.download_outlined, size: 13,
-                        color: Color(0xFF388BFF)),
-                  const SizedBox(width: 6),
+                            color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF))))
+                    : Icon(Icons.download_outlined, size: 13,
+                        color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF))),
+                  SizedBox(width: 6),
                   Text(_exporting ? 'Exporting…' : 'Export CSV',
-                      style: const TextStyle(fontSize: 11,
+                      style: TextStyle(fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF388BFF))),
+                          color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)))),
                 ]),
               ),
             ),
@@ -2241,24 +2242,24 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
-                  color: _settingsMode ? AppColors.purple : (themeNotifier.dark ? AppColors.darkElevated : Colors.white),
+                  color: _settingsMode ? (themeNotifier.dark ? AppColors.darkPrimary : AppColors.purple) : (themeNotifier.dark ? AppColors.darkElevated : Colors.white),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: _settingsMode ? AppColors.purple : (themeNotifier.dark ? AppColors.darkText.withOpacity(0.25) : Colors.black12)),
+                    color: _settingsMode ? (themeNotifier.dark ? AppColors.darkPrimary : AppColors.purple) : (themeNotifier.dark ? AppColors.darkText.withOpacity(0.25) : Colors.black12)),
                   boxShadow: _settingsMode ? [BoxShadow(
-                      color: const Color(0xFF170345).withOpacity(0.25),
+                      color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)).withOpacity(0.25),
                       blurRadius: 8, offset: const Offset(0, 2))] : [],
                 ),
                 child: Row(children: [
                   Icon(
                     _settingsMode ? Icons.tune : Icons.tune_outlined,
                     size: 13,
-                    color: _settingsMode ? Colors.white : (themeNotifier.dark ? AppColors.darkSubtext : Colors.black45),
+                    color: _settingsMode ? (themeNotifier.dark ? AppColors.darkBg : Colors.white) : (themeNotifier.dark ? AppColors.darkSubtext : Colors.black45),
                   ),
                   const SizedBox(width: 6),
                   Text('Settings', style: TextStyle(
                       fontSize: 11, fontWeight: FontWeight.w600,
-                      color: _settingsMode ? Colors.white : (themeNotifier.dark ? AppColors.darkSubtext : Colors.black45))),
+                      color: _settingsMode ? (themeNotifier.dark ? AppColors.darkBg : Colors.white) : (themeNotifier.dark ? AppColors.darkSubtext : Colors.black45))),
                   const SizedBox(width: 8),
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
@@ -2361,7 +2362,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
     final history = _history[key] ?? [];
     // Use editable thresholds for alarm level; fall back to backend alarm
     final alarm   = r != null ? _computeAlarm(key, r.value) : (r?.alarm ?? 'ok');
-    final col     = settings ? const Color(0xFF170345) : _alarmColor(alarm);
+    final col     = settings ? (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)) : _alarmColor(alarm);
     final target  = widget.targets[key] ?? 0.0;
     final step    = _steps[key]   ?? 1.0;
     final bounds  = _bounds[key]  ?? (0.0, 999.0);
@@ -2375,11 +2376,11 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
       duration: const Duration(milliseconds: 250),
       padding: EdgeInsets.all(compact ? 12 : 16),
       decoration: BoxDecoration(
-        color: settings ? const Color(0xFF1A3A6E).withOpacity(0.04) : (themeNotifier.dark ? AppColors.darkCard : Colors.white),
+        color: settings ? (themeNotifier.dark ? AppColors.darkPrimary.withOpacity(0.06) : Color(0xFF1A3A6E).withOpacity(0.04)) : (themeNotifier.dark ? AppColors.darkCard : Colors.white),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: settings
-              ? const Color(0xFF1A3A6E).withOpacity(0.25)
+              ? (themeNotifier.dark ? AppColors.darkPrimary.withOpacity(0.35) : Color(0xFF1A3A6E).withOpacity(0.25))
               : col.withOpacity(alarm == 'ok' ? 0.2 : 0.6),
           width: settings ? 1.5 : (alarm == 'ok' ? 1 : 2),
         ),
@@ -2397,7 +2398,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
           Flexible(child: Text(label,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: labelSize,
-                  color: settings ? const Color(0xFF1A3A6E) : (themeNotifier.dark ? AppColors.darkText : Colors.black45),
+                  color: settings ? (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF1A3A6E)) : (themeNotifier.dark ? AppColors.darkText : Colors.black45),
                   fontWeight: FontWeight.w600))),
           const Spacer(),
           if (!settings && alarm != 'ok') Container(
@@ -2486,7 +2487,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
                           style: TextStyle(
                             fontSize: valueSize,
                             fontWeight: FontWeight.w800,
-                            color: const Color(0xFF1A3A6E),
+                            color: themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF1A3A6E),
                             height: 1,
                           ),
                         ),
@@ -2531,11 +2532,11 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
         width:  compact ? 32 : 38,
         height: compact ? 32 : 38,
         decoration: BoxDecoration(
-          color: const Color(0xFF1A3A6E).withOpacity(0.1),
+          color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF1A3A6E)).withOpacity(0.1),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFF1A3A6E).withOpacity(0.2)),
+          border: Border.all(color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF1A3A6E)).withOpacity(0.2)),
         ),
-        child: Icon(icon, size: compact ? 14 : 18, color: themeNotifier.dark ? AppColors.darkSecondary : const Color(0xFF1A3A6E)),
+        child: Icon(icon, size: compact ? 14 : 18, color: themeNotifier.dark ? AppColors.darkSecondary : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF1A3A6E))),
       ),
     );
   }
@@ -2549,7 +2550,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(children: [
-          Icon(Icons.tune, size: 16, color: themeNotifier.dark ? AppColors.darkSecondary : const Color(0xFF1A3A6E)),
+          Icon(Icons.tune, size: 16, color: themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF1A3A6E)),
           const SizedBox(width: 8),
           Text('Set $label Target',
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
@@ -2564,7 +2565,7 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700,
-                color: themeNotifier.dark ? AppColors.darkSecondary : const Color(0xFF1A3A6E)),
+                color: themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF1A3A6E)),
             decoration: InputDecoration(
               suffixText: unit,
               suffixStyle: TextStyle(fontSize: 13, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38),
@@ -2574,8 +2575,8 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
                   borderRadius: BorderRadius.circular(10)),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(
-                    color: Color(0xFF1A3A6E), width: 1.5),
+                borderSide: BorderSide(
+                    color: themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF1A3A6E), width: 1.5),
               ),
             ),
             onSubmitted: (_) {
@@ -2596,8 +2597,8 @@ class _EnvironmentPanelState extends State<EnvironmentPanel> {
               Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1A3A6E),
-              foregroundColor: Colors.white,
+              backgroundColor: themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF1A3A6E),
+              foregroundColor: themeNotifier.dark ? Colors.black : Colors.white,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
             ),
@@ -2746,7 +2747,7 @@ class RunProtocolPanel extends StatelessWidget {
   Widget _statusBadge(BuildContext context) {
     final (label, col) = switch (runStatus) {
       ProtocolStatus.idle      => ('IDLE',      const Color(0xFF9E9E9E)),
-      ProtocolStatus.running   => ('RUNNING',   const Color(0xFF388BFF)),
+      ProtocolStatus.running   => ('RUNNING',   (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF))),
       ProtocolStatus.paused    => ('PAUSED',    const Color(0xFFFFA726)),
       ProtocolStatus.completed => ('COMPLETED', const Color(0xFF26C6A0)),
       ProtocolStatus.aborted   => ('ABORTED',   const Color(0xFFEF5350)),
@@ -2802,13 +2803,13 @@ class RunProtocolPanel extends StatelessWidget {
 
     final col = isFailed ? const Color(0xFFEF5350)
               : isDone   ? const Color(0xFF26C6A0)
-              : isActive ? const Color(0xFF388BFF)
+              : isActive ? (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF))
               :            (t.dark ? AppColors.darkMuted : const Color(0xFFE0E0E0));
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
       color: isActive
-          ? const Color(0xFF388BFF).withOpacity(t.dark ? 0.12 : 0.05)
+          ? (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)).withOpacity(t.dark ? 0.12 : 0.05)
           : Colors.transparent,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(children: [
@@ -2831,13 +2832,13 @@ class RunProtocolPanel extends StatelessWidget {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
             children: [
           Row(children: [
-            Icon(step.icon, size: 14, color: t.dark ? AppColors.darkSecondary : const Color(0xFF1A3A6E)),
+            Icon(step.icon, size: 14, color: t.dark ? AppColors.darkSecondary : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF1A3A6E))),
             const SizedBox(width: 5),
             Flexible(child: Text(step.title,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 12, fontWeight: FontWeight.w600,
-                  color: isActive ? const Color(0xFF388BFF)
+                  color: isActive ? (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF))
                        : isDone   ? t.text
                        :            t.muted,
                 ))),
@@ -2848,7 +2849,7 @@ class RunProtocolPanel extends StatelessWidget {
               style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600,
                   color: isDone
                       ? const Color(0xFF26C6A0)
-                      : const Color(0xFF388BFF)),
+                      : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF))),
             ),
         ])),
       ]),
@@ -2886,57 +2887,57 @@ class RunProtocolPanel extends StatelessWidget {
         color: t.card,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-            color: const Color(0xFF388BFF).withOpacity(0.25), width: 1.5),
+            color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)).withOpacity(0.25), width: 1.5),
         boxShadow: [BoxShadow(
-            color: const Color(0xFF388BFF).withOpacity(0.07),
+            color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)).withOpacity(0.07),
             blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
         // Header row
         Row(children: [
-          Icon(step.icon, size: 28, color: t.dark ? AppColors.darkSecondary : const Color(0xFF1A3A6E)),
+          Icon(step.icon, size: 28, color: t.dark ? AppColors.darkSecondary : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF1A3A6E))),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
               children: [
             Row(children: [
               _pill('STEP ${activeStep + 1} / ${steps.length}',
-                  const Color(0xFF388BFF)),
+                  (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF))),
               if (runStatus == ProtocolStatus.paused) ...[
                 const SizedBox(width: 8),
-                _pill('PAUSED', const Color(0xFFFFA726)),
+                _pill('PAUSED', Color(0xFFFFA726)),
               ],
             ]),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Text(step.title, style: TextStyle(fontSize: 18,
                 fontWeight: FontWeight.w700, color: t.text)),
           ])),
           if (step.durationSeconds > 0)
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text(_fmt(step.elapsedSeconds),
-                  style: const TextStyle(fontSize: 22,
+                  style: TextStyle(fontSize: 22,
                       fontWeight: FontWeight.w800,
                       fontFamily: 'monospace',
-                      color: Color(0xFF388BFF))),
+                      color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)))),
               Text('${_fmt(remaining)} remaining',
                   style: TextStyle(fontSize: 9, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38)),
             ]),
         ]),
 
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
 
         // Description
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-              color: themeNotifier.dark ? AppColors.darkElevated : const Color(0xFFF8F9FF),
+              color: themeNotifier.dark ? AppColors.darkElevated : Color(0xFFF8F9FF),
               borderRadius: BorderRadius.circular(10)),
           child: Text(step.description,
               style: TextStyle(fontSize: 12,
                   color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black54, height: 1.6)),
         ),
 
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
 
         // Step progress bar
         if (step.durationSeconds > 0) ...[
@@ -2944,16 +2945,16 @@ class RunProtocolPanel extends StatelessWidget {
             Text('Step progress', style: TextStyle(fontSize: 10,
                 color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38, fontWeight: FontWeight.w600)),
             Text('${(frac * 100).toStringAsFixed(0)}%',
-                style: const TextStyle(fontSize: 10,
-                    fontWeight: FontWeight.w700, color: Color(0xFF388BFF))),
+                style: TextStyle(fontSize: 10,
+                    fontWeight: FontWeight.w700, color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)))),
           ]),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: frac, minHeight: 6,
-              backgroundColor: const Color(0xFFE8EEFF),
-              valueColor: const AlwaysStoppedAnimation(Color(0xFF388BFF)),
+              backgroundColor: Color(0xFFE8EEFF),
+              valueColor: AlwaysStoppedAnimation((themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF))),
             ),
           ),
         ],
@@ -3009,10 +3010,14 @@ class RunProtocolPanel extends StatelessWidget {
               duration: const Duration(milliseconds: 150),
               width: 64, height: 64,
               decoration: BoxDecoration(
-                  color: const Color(0xFF388BFF).withOpacity(0.08),
-                  shape: BoxShape.circle),
-              child: const Icon(Icons.play_circle_outline,
-                  size: 36, color: Color(0xFF388BFF)),
+                color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)).withOpacity(0.08),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.play_circle_outline,
+                size: 36,
+                color: themeNotifier.dark ? AppColors.darkPrimary : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)),
+              ),
             ),
           ),
         ),
@@ -3113,7 +3118,7 @@ class RunProtocolPanel extends StatelessWidget {
         : 0.0;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(color: themeNotifier.dark ? AppColors.darkCard : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
@@ -3123,8 +3128,8 @@ class RunProtocolPanel extends StatelessWidget {
               style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
                   color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black45)),
           Text('${(frac * 100).toStringAsFixed(0)}%',
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
-                  color: Color(0xFF388BFF))),
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                  color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)))),
         ]),
         const SizedBox(height: 8),
         ClipRRect(
@@ -3135,7 +3140,7 @@ class RunProtocolPanel extends StatelessWidget {
             valueColor: AlwaysStoppedAnimation(
               runStatus == ProtocolStatus.aborted
                   ? const Color(0xFFEF5350)
-                  : const Color(0xFF388BFF),
+                  : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)),
             ),
           ),
         ),
@@ -3163,7 +3168,7 @@ class RunProtocolPanel extends StatelessWidget {
           label: canStart && runStatus != ProtocolStatus.idle
               ? 'New Run' : 'Start Run',
           icon: Icons.play_arrow_rounded,
-          color: const Color(0xFF388BFF),
+          color: themeNotifier.dark ? AppColors.darkPrimary : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)),
           enabled: canStart, onTap: onStart,
         )),
         const SizedBox(width: 10),
@@ -3194,7 +3199,7 @@ class RunProtocolPanel extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 9),
             decoration: BoxDecoration(
-              color: themeNotifier.dark ? AppColors.darkSurface : const Color(0xFFF3F3F3),
+              color: themeNotifier.dark ? AppColors.darkSurface : Color(0xFFF3F3F3),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12),
             ),
@@ -3476,7 +3481,7 @@ class _OncologyPanelState extends State<OncologyPanel> {
         Expanded(child: appButton(
           icon: _exportingReport ? Icons.hourglass_top_rounded : Icons.picture_as_pdf_outlined,
           label: _exportingReport ? 'Generating…' : 'Export Report',
-          color: const Color(0xFF388BFF),
+          color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)),
           onTap: (_exportingReport || _bestDrug.isEmpty) ? () {} : () => _showReport(context),
         )),
         const SizedBox(width: 12),
@@ -3536,13 +3541,13 @@ class _OncologyPanelState extends State<OncologyPanel> {
            'Start a protocol run first. Oncology results will be available once '
            'the Fluorescence Imaging step begins.',
            'Go to Protocol',
-           const Color(0xFF388BFF))
+           (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)))
         : (Icons.hourglass_top_rounded,
            'Awaiting imaging data',
            'The protocol is currently at: ${widget.activeStepId.replaceAll('_', ' ')}.\n'
            'Oncology results will unlock automatically once imaging is complete.',
            'View Protocol',
-           const Color(0xFF388BFF));
+           (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)));
 
     // Progress mini-strip showing which steps are done
     return Center(
@@ -3559,14 +3564,14 @@ class _OncologyPanelState extends State<OncologyPanel> {
             Container(
               width: 72, height: 72,
               decoration: BoxDecoration(
-                color: const Color(0xFF388BFF).withOpacity(0.08),
+                color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)).withOpacity(0.08),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 38, color: const Color(0xFF388BFF)),
+              child: Icon(icon, size: 38, color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF))),
             ),
             const SizedBox(height: 20),
             Text(title, style: TextStyle(fontSize: 20,
-                fontWeight: FontWeight.w700, color: themeNotifier.dark ? AppColors.darkText : const Color(0xFF1A1A2E))),
+                fontWeight: FontWeight.w700, color: themeNotifier.dark ? AppColors.darkText : (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E)))),
             const SizedBox(height: 10),
             Text(subtitle, textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12,
@@ -3598,14 +3603,14 @@ class _OncologyPanelState extends State<OncologyPanel> {
                       color: isDone
                           ? const Color(0xFF26C6A0).withOpacity(0.12)
                           : isAct
-                              ? const Color(0xFF388BFF).withOpacity(0.10)
+                              ? (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)).withOpacity(0.10)
                               : const Color(0xFFF3F3F3),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: isDone
                             ? const Color(0xFF26C6A0).withOpacity(0.5)
                             : isAct
-                                ? const Color(0xFF388BFF).withOpacity(0.4)
+                                ? (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)).withOpacity(0.4)
                                 : Colors.black12,
                       ),
                     ),
@@ -3614,7 +3619,7 @@ class _OncologyPanelState extends State<OncologyPanel> {
                       color: isDone
                           ? const Color(0xFF26C6A0)
                           : isAct
-                              ? const Color(0xFF388BFF)
+                              ? (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF))
                               : Colors.black38,
                       fontWeight: isAct || isDone
                           ? FontWeight.w700 : FontWeight.normal,
@@ -4353,15 +4358,15 @@ class _OncologyReportDialogState extends State<OncologyReportDialog> {
           color: false ? AppColors.darkCard : Colors.white,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.25),
-              blurRadius: 40, offset: const Offset(0, 12))],
+              blurRadius: 40, offset: Offset(0, 12))],
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
 
           // ── Header ──
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
-            decoration: const BoxDecoration(
-              color: Color(0xFF1A1A2E),
+            padding: EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+            decoration: BoxDecoration(
+              color: (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E)),
               borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),
             child: Row(children: [
@@ -4477,7 +4482,7 @@ class _OncologyReportDialogState extends State<OncologyReportDialog> {
                 const SizedBox(height: 8),
                 Row(children: [
                   Expanded(child: _statCard('Wells Tested',
-                      '${widget.wells.length}', const Color(0xFF388BFF))),
+                      '${widget.wells.length}', (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)))),
                   const SizedBox(width: 10),
                   Expanded(child: _statCard('Best Efficacy',
                       '${widget.bestEfficacy.toStringAsFixed(1)}%',
@@ -4486,7 +4491,7 @@ class _OncologyReportDialogState extends State<OncologyReportDialog> {
                   Expanded(child: _statCard('Avg Efficacy',
                       widget.wells.isEmpty ? '—'
                       : '${(widget.wells.fold(0.0,(a,b)=>a+b.efficacy)/widget.wells.length).toStringAsFixed(1)}%',
-                      const Color(0xFF388BFF))),
+                      (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)))),
                   const SizedBox(width: 10),
                   Expanded(child: _statCard('Avg Viability',
                       widget.wells.isEmpty ? '—'
@@ -4539,7 +4544,7 @@ class _OncologyReportDialogState extends State<OncologyReportDialog> {
                   duration: const Duration(milliseconds: 150),
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                   decoration: BoxDecoration(
-                    color: _exporting ? Colors.black12 : const Color(0xFF388BFF),
+                    color: _exporting ? Colors.black12 : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -4554,7 +4559,7 @@ class _OncologyReportDialogState extends State<OncologyReportDialog> {
                   ]),
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: Text('Close', style: TextStyle(color: false ? AppColors.darkSubtext : Colors.black45)),
@@ -4568,10 +4573,10 @@ class _OncologyReportDialogState extends State<OncologyReportDialog> {
 
   Widget _sectionLabel(String text) => Row(children: [
     Container(width: 3, height: 14, decoration: BoxDecoration(
-        color: const Color(0xFF388BFF), borderRadius: BorderRadius.circular(2))),
-    const SizedBox(width: 8),
-    Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
-        color: Color(0xFF1A1A2E), letterSpacing: 0.5)),
+        color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)), borderRadius: BorderRadius.circular(2))),
+    SizedBox(width: 8),
+    Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
+        color: (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E)), letterSpacing: 0.5)),
   ]);
 
   Widget _chip(IconData icon, String label) => Container(
@@ -4591,7 +4596,7 @@ class _OncologyReportDialogState extends State<OncologyReportDialog> {
         fontWeight: FontWeight.w700, letterSpacing: 0.4)),
     const SizedBox(height: 3),
     Text(val, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
-        color: false ? AppColors.darkText : const Color(0xFF1A1A2E))),
+        color: false ? AppColors.darkText : (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E)))),
   ]);
 
   Widget _statCard(String label, String value, Color col) => Container(
@@ -4656,7 +4661,7 @@ class _OncologyReportDialogState extends State<OncologyReportDialog> {
                         color: r.rank == 1 ? Colors.white : col))),
                   )),
                   cell(Text(r.drug, style: TextStyle(fontSize: 11,
-                      fontWeight: FontWeight.w700, color: false ? AppColors.darkText : const Color(0xFF1A1A2E)))),
+                      fontWeight: FontWeight.w700, color: false ? AppColors.darkText : (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E))))),
                   cell(Text(r.category, style: TextStyle(
                       fontSize: 10, color: false ? AppColors.darkSubtext : Colors.black45))),
                   cell(Container(
@@ -4720,7 +4725,7 @@ class _OncologyReportDialogState extends State<OncologyReportDialog> {
                   cell(Text('W${w.wellIndex + 1}', style: TextStyle(
                       fontSize: 9, fontFamily: 'monospace', color: false ? AppColors.darkMuted : Colors.black38))),
                   cell(Text(w.drug, style: TextStyle(fontSize: 10,
-                      fontWeight: FontWeight.w600, color: false ? AppColors.darkText : const Color(0xFF1A1A2E)))),
+                      fontWeight: FontWeight.w600, color: false ? AppColors.darkText : (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E))))),
                   cell(Text(w.category, style: TextStyle(
                       fontSize: 9, color: false ? AppColors.darkSubtext : Colors.black45))),
                   cell(Text('${w.efficacy.toStringAsFixed(1)}%',
@@ -4818,7 +4823,7 @@ class _SessionHistoryDialogState extends State<SessionHistoryDialog> {
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Session History',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: themeNotifier.dark ? AppColors.darkCard : Colors.white)),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
                 Text(_showAll ? 'All patients' : 'Patient ${widget.patientId}',
                     style: const TextStyle(fontSize: 10, color: Colors.white38)),
               ])),
@@ -5095,25 +5100,24 @@ class _CsvSaveDialogState extends State<_CsvSaveDialog> {
           // Header
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
-            decoration: const BoxDecoration(
-              color: Color(0xFF1A1A2E),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            decoration: BoxDecoration(
+              color: themeNotifier.dark ? AppColors.darkPrimary.withOpacity(0.85) : (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             ),
             child: Row(children: [
               Container(
                 padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF388BFF).withOpacity(0.2),
+                  color: Colors.white.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(Icons.download_outlined,
-                    color: Color(0xFF388BFF), size: 16),
+                    color: Colors.white, size: 16),
               ),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Export Sensor Data',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
-                        color: themeNotifier.dark ? AppColors.darkCard : Colors.white)),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
                 Text('Choose where to save the CSV file',
                     style: TextStyle(fontSize: 10, color: Colors.white38)),
               ])),
@@ -5138,7 +5142,7 @@ class _CsvSaveDialogState extends State<_CsvSaveDialog> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
-                      color: themeNotifier.dark ? AppColors.darkElevated : const Color(0xFFF8F9FF),
+                      color: themeNotifier.dark ? AppColors.darkElevated : Color(0xFFF8F9FF),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12),
                     ),
@@ -5146,8 +5150,8 @@ class _CsvSaveDialogState extends State<_CsvSaveDialog> {
                       Icon(Icons.folder_outlined, size: 14, color: themeNotifier.dark ? AppColors.darkMuted : Colors.black38),
                       const SizedBox(width: 8),
                       Expanded(child: Text(dirDisplay,
-                          style: const TextStyle(fontSize: 11,
-                              fontFamily: 'monospace', color: Colors.black54),
+                          style: TextStyle(fontSize: 11,
+                              fontFamily: 'monospace', color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black54),
                           overflow: TextOverflow.ellipsis)),
                     ]),
                   ),
@@ -5162,8 +5166,8 @@ class _CsvSaveDialogState extends State<_CsvSaveDialog> {
                       : const Icon(Icons.folder_open_outlined, size: 14),
                   label: Text(_picking ? 'Opening…' : 'Browse…'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF170345),
-                    foregroundColor: Colors.white,
+                    backgroundColor: themeNotifier.dark ? AppColors.darkElevated : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF170345)),
+                    foregroundColor: themeNotifier.dark ? AppColors.darkPrimary : Colors.white,
                     padding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 11),
                     shape: RoundedRectangleBorder(
@@ -5200,8 +5204,8 @@ class _CsvSaveDialogState extends State<_CsvSaveDialog> {
                       borderSide: BorderSide(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12)),
                   focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(
-                          color: Color(0xFF388BFF), width: 1.5)),
+                      borderSide: BorderSide(
+                          color: themeNotifier.dark ? AppColors.darkPrimary : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)), width: 1.5)),
                 ),
               ),
 
@@ -5211,18 +5215,18 @@ class _CsvSaveDialogState extends State<_CsvSaveDialog> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF388BFF).withOpacity(0.05),
+                  color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)).withOpacity(0.05),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                      color: const Color(0xFF388BFF).withOpacity(0.2)),
+                      color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)).withOpacity(0.2)),
                 ),
                 child: Row(children: [
-                  const Icon(Icons.info_outline, size: 12,
-                      color: Color(0xFF388BFF)),
+                  Icon(Icons.info_outline, size: 12,
+                      color: themeNotifier.dark ? AppColors.darkPrimary : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF))),
                   const SizedBox(width: 7),
                   Expanded(child: Text(_fullPath,
-                      style: const TextStyle(fontSize: 10,
-                          fontFamily: 'monospace', color: Colors.black54),
+                      style: TextStyle(fontSize: 10,
+                          fontFamily: 'monospace', color: themeNotifier.dark ? AppColors.darkSubtext : Colors.black54),
                       overflow: TextOverflow.ellipsis)),
                 ]),
               ),
@@ -5240,8 +5244,8 @@ class _CsvSaveDialogState extends State<_CsvSaveDialog> {
                   icon: const Icon(Icons.download_outlined, size: 15),
                   label: const Text('Save Here'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF388BFF),
-                    foregroundColor: Colors.white,
+                    backgroundColor: themeNotifier.dark ? AppColors.darkPrimary : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)),
+                    foregroundColor: themeNotifier.dark ? Colors.black : Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 13),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
@@ -5335,9 +5339,9 @@ class _AlarmThresholdDialogState extends State<_AlarmThresholdDialog> {
           // ── Header ──
           Container(
             padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
-            decoration: const BoxDecoration(
-              color: Color(0xFF1A1A2E),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            decoration: BoxDecoration(
+              color: t.dark ? AppColors.darkPrimary.withOpacity(0.85) : (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             ),
             child: Row(children: [
               Container(
@@ -5352,7 +5356,7 @@ class _AlarmThresholdDialogState extends State<_AlarmThresholdDialog> {
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Alarm Threshold Editor',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: themeNotifier.dark ? AppColors.darkCard : Colors.white)),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
                 Text('Warning and critical bands per sensor — values outside trigger alarms',
                     style: TextStyle(fontSize: 10, color: Colors.white38)),
               ])),
@@ -5408,7 +5412,7 @@ class _AlarmThresholdDialogState extends State<_AlarmThresholdDialog> {
                 icon: const Icon(Icons.check, size: 15),
                 label: const Text('Save Thresholds'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1A1A2E),
+                  backgroundColor: themeNotifier.dark ? AppColors.darkPrimary : (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E)),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -5444,7 +5448,7 @@ class _AlarmThresholdDialogState extends State<_AlarmThresholdDialog> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: themeNotifier.dark ? AppColors.darkElevated : const Color(0xFFF8F9FF),
+        color: themeNotifier.dark ? AppColors.darkElevated : Color(0xFFF8F9FF),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: themeNotifier.dark ? AppColors.darkBorder : Colors.black12),
       ),
@@ -5454,7 +5458,7 @@ class _AlarmThresholdDialogState extends State<_AlarmThresholdDialog> {
           Text(emoji, style: const TextStyle(fontSize: 14)),
           const SizedBox(width: 8),
           Text(label, style: TextStyle(fontSize: 12,
-              fontWeight: FontWeight.w600, color: themeNotifier.dark ? AppColors.darkText : const Color(0xFF1A1A2E))),
+              fontWeight: FontWeight.w600, color: themeNotifier.dark ? AppColors.darkText : (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E)))),
         ])),
 
         // Warning band
@@ -5837,8 +5841,8 @@ class _DockerProgressDialogState extends State<_DockerProgressDialog> {
   Widget build(BuildContext context) {
     final (phaseLabel, phaseColor) = switch (_phase) {
       'checking'  => ('Checking image',   const Color(0xFF9E9E9E)),
-      'building'  => ('Building image',   const Color(0xFF388BFF)),
-      'starting'  => ('Starting container', const Color(0xFF388BFF)),
+      'building'  => ('Building image',   (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF))),
+      'starting'  => ('Starting container', (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF))),
       'done'      => ('Running',           const Color(0xFF26C6A0)),
       _           => ('Error',             const Color(0xFFEF5350)),
     };
@@ -5849,7 +5853,7 @@ class _DockerProgressDialogState extends State<_DockerProgressDialog> {
       child: Container(
         constraints: const BoxConstraints(maxWidth: 640),
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1A2E),
+          color: (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E)),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [BoxShadow(
               color: Colors.black.withOpacity(0.4),
@@ -5917,7 +5921,7 @@ class _DockerProgressDialogState extends State<_DockerProgressDialog> {
                 Color col = Colors.white54;
                 if (line.startsWith('✓'))  col = const Color(0xFF26C6A0);
                 if (line.startsWith('✗'))  col = const Color(0xFFEF5350);
-                if (line.startsWith('▶'))  col = const Color(0xFF388BFF);
+                if (line.startsWith('▶'))  col = (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF));
                 return Text(line,
                     style: TextStyle(
                         fontSize: 10.5, fontFamily: 'monospace',
@@ -6430,15 +6434,15 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [BoxShadow(
               color: Colors.black.withOpacity(0.25),
-              blurRadius: 40, offset: const Offset(0, 12))],
+              blurRadius: 40, offset: Offset(0, 12))],
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
 
           // ── Header bar ──
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
-            decoration: const BoxDecoration(
-              color: Color(0xFF1A1A2E),
+            padding: EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+            decoration: BoxDecoration(
+              color: (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E)),
               borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),
             child: Row(children: [
@@ -6553,7 +6557,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
                   decoration: BoxDecoration(
                     color: _exporting
                         ? Colors.black12
-                        : const Color(0xFF388BFF),
+                        : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -6589,11 +6593,11 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
 
   Widget _sectionLabel(String text) => Row(children: [
     Container(width: 3, height: 14,
-        decoration: BoxDecoration(color: const Color(0xFF388BFF),
+        decoration: BoxDecoration(color: (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)),
             borderRadius: BorderRadius.circular(2))),
     const SizedBox(width: 8),
     Text(text, style: TextStyle(fontSize: 12,
-        fontWeight: FontWeight.w800, color: const Color(0xFF1A1A2E),
+        fontWeight: FontWeight.w800, color: (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E)),
         letterSpacing: 0.5)),
   ]);
 
@@ -6635,7 +6639,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
 
   Widget _summaryRow() => Row(children: [
     Expanded(child: _statCard('Total Steps',
-        '${steps.length}', const Color(0xFF388BFF))),
+        '${steps.length}', (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF)))),
     const SizedBox(width: 10),
     Expanded(child: _statCard('Completed',
         '${steps.where((s) => s.status == StepStatus.done).length}',
@@ -6646,7 +6650,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
         const Color(0xFFEF5350))),
     const SizedBox(width: 10),
     Expanded(child: _statCard('Total Runtime',
-        _fmt(totalElapsed), const Color(0xFF1A1A2E))),
+        _fmt(totalElapsed), (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E)))),
   ]);
 
   Widget _statCard(String label, String value, Color col) => Container(
@@ -6710,7 +6714,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
     final statusCol = isFailed ? const Color(0xFFEF5350)
         : isDone ? const Color(0xFF26C6A0)
         : isPend ? const Color(0xFFBBBBBB)
-        : const Color(0xFF388BFF);
+        : (themeNotifier.dark ? AppColors.darkPrimary : Color(0xFF388BFF));
     final statusLabel = isFailed ? 'FAILED'
         : isDone ? 'DONE'
         : isPend ? 'SKIPPED'
@@ -6734,7 +6738,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
             horizontal: 10, vertical: 10),
             child: Text(step.title, style: TextStyle(
                 fontSize: 11, fontWeight: FontWeight.w600,
-                color: const Color(0xFF1A1A2E)))),
+                color: (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E))))),
         // QC note
         Padding(padding: const EdgeInsets.symmetric(
             horizontal: 10, vertical: 10),
@@ -6793,7 +6797,7 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
               ? 'Run completed successfully. All steps passed QC criteria.'
               : 'Run did not complete normally. Manual review required.',
           style: TextStyle(fontSize: 12,
-              fontWeight: FontWeight.w600, color: const Color(0xFF1A1A2E))),
+              fontWeight: FontWeight.w600, color: (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E)))),
         const SizedBox(height: 3),
         Text('Operator: $tech  ·  $dateStr',
             style: TextStyle(fontSize: 10, color: Colors.black38)),
@@ -6807,6 +6811,6 @@ class _ProtocolReportDialogState extends State<_ProtocolReportDialog> {
         fontWeight: FontWeight.w700, letterSpacing: 0.4)),
     const SizedBox(height: 3),
     Text(val, style: TextStyle(fontSize: 12,
-        fontWeight: FontWeight.w600, color: const Color(0xFF1A1A2E))),
+        fontWeight: FontWeight.w600, color: (themeNotifier.dark ? AppColors.darkText : Color(0xFF1A1A2E)))),
   ]);
 }
