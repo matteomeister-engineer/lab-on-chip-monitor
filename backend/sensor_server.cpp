@@ -306,8 +306,8 @@ int main() {
     });
 
     // Handle CORS preflight for all routes
+    // Note: Access-Control-Allow-Origin already set by set_default_headers above
     server.Options(".*", [](const httplib::Request&, httplib::Response& res) {
-        res.set_header("Access-Control-Allow-Origin",  "*");
         res.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
         res.set_header("Access-Control-Allow-Headers", "Content-Type, Authorization");
         res.set_header("Access-Control-Max-Age",       "86400");
