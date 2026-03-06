@@ -39,9 +39,15 @@ jobs:
         working-directory: frontend
         run: |
           TAG=${{ github.ref_name }}
-          sed -i '' "s/setState(() => _version = 'v[^']*');/setState(() => _version = '$TAG');/" lib/main.dart
-          echo "Version injected: $TAG"
-          grep "_version" lib/main.dart
+          python3 -c "
+import re, sys
+tag = sys.argv[1]
+path = 'lib/main.dart'
+src = open(path).read()
+src = re.sub(r\"setState\(\(\) => _version = 'v[^']*'\);\", f\"setState(() => _version = '{tag}');\", src)
+open(path, 'w').write(src)
+print('Version injected:', tag)
+" "$TAG"
 
       - name: Build macOS
         working-directory: frontend
