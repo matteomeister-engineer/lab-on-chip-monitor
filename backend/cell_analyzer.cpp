@@ -192,9 +192,21 @@ int main() {
     server.Get("/api/status",[](const httplib::Request&,httplib::Response& res){
         res.set_content("{\"status\":\"active\",\"wells\":20}","application/json");
     });
+
+    // Handle CORS preflight
+    server.Options(".*", [](const httplib::Request&, httplib::Response& res) {
+        res.set_header("Access-Control-Allow-Origin",  "*");
+        res.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.set_header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        res.set_header("Access-Control-Max-Age",       "86400");
+        res.status = 204;
+    });
+
     std::cout<<"Oncology analyzer on http://0.0.0.0:8081"<<std::endl;
-    int port = 8081;
-    if (std::getenv("PORT")) port = std::stoi(std::getenv("PORT"));
+    int port = 8081;  // fallback for local dev
+    if (std::getenv("PORT")) {
+        port = std::stoi(std::getenv("PORT"));
+    }
     server.listen("0.0.0.0", port);
     return 0;
 }

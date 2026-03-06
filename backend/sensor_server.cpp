@@ -305,10 +305,21 @@ int main() {
             + std::string(loggerRunning.load()?"true":"false") + "}", "application/json");
     });
 
-    int port = 8080;
-    if (std::getenv("PORT")) port = std::stoi(std::getenv("PORT"));
+    // Handle CORS preflight for all routes
+    server.Options(".*", [](const httplib::Request&, httplib::Response& res) {
+        res.set_header("Access-Control-Allow-Origin",  "*");
+        res.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.set_header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        res.set_header("Access-Control-Max-Age",       "86400");
+        res.status = 204;
+    });
 
-    std::cout << "Lab-on-Chip Monitor -> http://0.0.0.0:" << port << std::endl;
+    int port = 8080;  // fallback for local dev
+    if (std::getenv("PORT")) {
+        port = std::stoi(std::getenv("PORT"));
+    }
+
+    std::cout << "Lab-on-Chip Monitor running on port " << port << std::endl;
     std::cout << "CSV logs            -> " << LOG_DIR << "/" << std::endl;
     std::cout << "Start: POST /api/logger/start | Stop: POST /api/logger/stop" << std::endl;
 
